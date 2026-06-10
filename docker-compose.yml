@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------------------
+  # SERVICIO 1: FRONTEND Y BACKEND (El Auditor Web 24/7)
+  # ----------------------------------------------------
+  web_auditor:
+    build:
+      context: ./web_app
+    container_name: cdc_web
+    ports:
+      - "5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./web_app:/app
+      - ./volumen_compartido:/volumen_compartido
+      - ./volumen_compartido/paddle_modelos:/root/.paddleocr
+    restart: unless-stopped
+
+  # ----------------------------------------------------
+  # SERVICIO 2: EL ENTRENADOR DE IA (Bajo Demanda)
+  # ----------------------------------------------------
+  ia_trainer:
+    build:
+      context: ./trainer_app
+    container_name: cdc_trainer
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./trainer_app:/app
+      - ./volumen_compartido:/volumen_compartido
+      - ./volumen_compartido/paddle_modelos:/root/.paddleocr
+    # Sin 'restart' ni puertos, se queda dormido hasta que lo llamemos

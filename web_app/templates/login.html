@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Intexus - Auditoría CDC</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo_banco.css') }}">
+</head>
+<body>
+    <div style="text-align: right; padding: 20px;">
+        <button class="theme-toggle">🌗 Modo Oscuro</button>
+    </div>
+
+    <div class="container" style="max-width: 400px; margin-top: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <img class="brand-logo" src="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-light="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-dark="{{ url_for('static', filename='img/logo_blanco.png') }}" 
+                 alt="Intexus Logo" style="max-width: 250px;">
+        </div>
+
+        <div class="card">
+            <h3 style="text-align: center; margin-bottom: 20px;">Acceso al Sistema CDC</h3>
+            <form method="POST">
+                <div class="form-group"><label>Usuario corporativo:</label><input type="text" name="username" class="form-control" required></div>
+                <div class="form-group"><label>Contraseña:</label><input type="password" name="password" class="form-control" required></div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Ingresar de forma segura</button>
+            </form>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+/* VARIABLES GLOBALES ACTUALIZADAS (MODO CLARO) */
+:root {
+    --bg-body: #f4f7f6;
+    --bg-card: #ffffff;
+    --text-main: #333333;
+    --text-heading: #174a45; /* Verde petróleo Intexus */
+    --nav-bg: #ffffff;
+    --nav-text: #174a45;
+    --border-accent: #d4f554; /* Verde lima Intexus */
+    
+    /* Paleta de botones */
+    --btn-primary-bg: #174a45;
+    --btn-primary-text: #ffffff;
+    --btn-success-bg: #d4f554;
+    --btn-success-text: #174a45;
+    --btn-danger-bg: #d9534f;
+    
+    /* NUEVO: Tercer color corporativo de Intexus */
+    --color-action-purple: #9E8CE7; 
+    
+    --input-bg: #fafafa;
+    --input-border: #ddd;
+    --card-shadow: rgba(0,0,0,0.05);
+}
+
+/* MODO OSCURO ACTUALIZADO (DARK MODE) */
+body.dark-mode {
+    --bg-body: #0a1715; 
+    --bg-card: #112b28; 
+    --text-main: #e0e0e0; 
+    --text-heading: #ffffff; /* Títulos blancos en oscuro */
+    --nav-bg: #0f2623;
+    --nav-text: #ffffff;
+    --border-accent: #d4f554;
+    
+    /* Botones en oscuro */
+    --btn-primary-bg: #ffffff;
+    --btn-primary-text: #174a45;
+    --btn-success-bg: #d4f554;
+    --btn-success-text: #174a45;
+    
+    --input-bg: #1a3d39;
+    --input-border: #2a5c56;
+    --card-shadow: rgba(0,0,0,0.3);
+}
+
+/* APLICACIÓN DE ESTILOS */
+body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: 0.4s; }
+/* --- BARRA DE NAVEGACIÓN --- */
+.navbar { background-color: var(--nav-bg); padding: 15px 25px; border-bottom: 4px solid var(--border-accent); box-shadow: 0 4px 6px var(--card-shadow); transition: 0.4s; display: flex; justify-content: space-between; align-items: center; }
+.logo-container { display: flex; align-items: center; gap: 15px; }
+.logo-container img { max-height: 40px; }
+.brand-title { font-size: 1.2rem; font-weight: bold; color: var(--text-heading); border-left: 2px solid var(--border-accent); padding-left: 15px; }
+/* NUEVO: Contenedor para alinear los controles de la derecha */
+.nav-controls { display: flex; align-items: center; gap: 20px; }
+.nav-controls a { color: var(--nav-text); text-decoration: none; font-weight: bold; transition: color 0.3s; display: flex; align-items: center; gap: 5px; }
+.nav-controls a:hover { color: var(--color-action-purple); }
+.theme-toggle { background: transparent; border: 2px solid var(--border-accent); color: var(--nav-text); padding: 5px 15px; border-radius: 20px; cursor: pointer; display: flex; align-items: center; }
+.navbar a { color: var(--nav-text); text-decoration: none; font-weight: bold; margin-left: 20px; transition: color 0.3s; }
+.theme-toggle { background: transparent; border: 2px solid var(--border-accent); color: var(--nav-text); padding: 5px 15px; border-radius: 20px; cursor: pointer; }
+
+.container { max-width: 1000px; margin: 40px auto; padding: 20px; }
+
+/* Tarjetas actualizadas con el nuevo color en el borde superior */
+.card { background: var(--bg-card); padding: 30px; border-radius: 8px; box-shadow: 0 4px 15px var(--card-shadow); margin-bottom: 25px; border-top: 4px solid var(--border-accent); transition: background-color 0.4s; }
+.card h2, .card h3 { color: var(--text-heading); transition: color 0.4s; margin-top: 0; }
+
+/* Botones base */
+.btn { padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; font-weight: bold; text-decoration: none; display: inline-block; transition: all 0.3s ease; }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px var(--card-shadow); }
+
+/* NUEVO CLASE: Botón Morado de Acción Principal */
+.btn-action-purple { background-color: var(--color-action-purple); color: #ffffff; }
+.btn-action-purple:hover { background-color: #8c7adb; }
+
+/* Resto de botones */
+.btn-primary { background-color: var(--btn-primary-bg); color: var(--btn-primary-text); }
+.btn-success { background-color: var(--btn-success-bg); color: var(--btn-success-text); }
+.btn-danger { background-color: var(--btn-danger-bg); color: white; }
+
+/* Formularios */
+.form-control { width: 100%; padding: 12px; border: 1px solid var(--input-border); border-radius: 5px; background-color: var(--input-bg); color: var(--text-main); transition: 0.3s; }
+.form-control:focus { border-color: var(--border-accent); outline: none; }
+
+/* Animación de puntos para el Modal (Loading dots) */
+@keyframes loading-dots {
+    0%, 20% { content: "."; }
+    40% { content: ".."; }
+    60%, 100% { content: "..."; }
+}
+.animated-dots::after { content: ""; animation: loading-dots 1.5s infinite; }

@@ -1,0 +1,13 @@
+# Caché de Python
+__pycache__/
+*.py[cod]
+
+# Base de datos
+*.db
+*.sqlite3
+
+# Volumen Compartido (No subir documentos ni modelos pesados)
+volumen_compartido/
+
+# Variables de entorno o secretos (si los agregas a futuro)
+.env

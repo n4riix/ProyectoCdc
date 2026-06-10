@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard CDC - Intexus</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo_banco.css') }}">
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo-container">
+            <img class="brand-logo" src="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-light="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-dark="{{ url_for('static', filename='img/logo_blanco.png') }}" 
+                 alt="Intexus Logo">
+            <span class="brand-title">Auditor Inteligente CDC</span>
+        </div>
+        
+        <div class="nav-controls">
+            <button class="theme-toggle">🌗</button>
+            <span>👤 {{ usuario }} ({{ rol }})</span>
+            {% if rol == 'admin' %}
+                <a href="/admin">⚙️ Entrenar IA</a>
+            {% endif %}
+            <a href="/logout">🚪 Cerrar Sesión</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Bienvenido al Centro de Auditoría</h2>
+            <p>La Inteligencia Artificial está lista para procesar los expedientes de Kofax almacenados en el servidor seguro de Intexus.</p>
+            
+            <button id="btn-auditar" class="btn btn-success" style="margin-right: 10px;">▶️ Iniciar Auditoría de Lote Actual</button>
+            <button class="btn btn-primary">Ver Historial de Alertas</button>
+        </div>
+
+        <div id="panel-resultados" class="card" style="display: none; border-top: 4px solid var(--border-accent);">
+            <h3>📊 Resultados de la Auditoría IA</h3>
+            <p id="texto-estado">Procesando documentos...</p>
+            
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left;">
+                    <thead>
+                        <tr style="background-color: var(--input-bg); border-bottom: 2px solid var(--input-border);">
+                            <th style="padding: 10px;">Archivo</th>
+                            <th style="padding: 10px;">Ruta (Matriz-Proc)</th>
+                            <th style="padding: 10px;">Operador Kofax dijo:</th>
+                            <th style="padding: 10px;">IA Detectó:</th>
+                            <th style="padding: 10px;">Veredicto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-cuerpo">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    
+    <script>
+        const btnAuditar = document.getElementById('btn-auditar');
+        const panelResultados = document.getElementById('panel-resultados');
+        const tablaCuerpo = document.getElementById('tabla-cuerpo');
+        const textoEstado = document.getElementById('texto-estado');
+
+        btnAuditar.addEventListener('click', () => {
+            // Preparamos la UI
+            panelResultados.style.display = 'block';
+            tablaCuerpo.innerHTML = '';
+            textoEstado.innerHTML = 'Leyendo Indice_*.txt y aplicando Visión Artificial <span class="animated-dots"></span>';
+            btnAuditar.disabled = true;
+            btnAuditar.innerText = '⏳ Auditando...';
+
+            // Llamamos a nuestra API de Python
+            fetch('/api/auditar_lote', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                btnAuditar.disabled = false;
+                btnAuditar.innerText = '▶️ Iniciar Auditoría de Lote Actual';
+                
+                if(data.error) {
+                    textoEstado.innerHTML = `<span style="color: #d9534f; font-weight: bold;">❌ Error: ${data.error}</span>`;
+                    return;
+                }
+
+                textoEstado.innerHTML = `✅ Auditoría completada. Se revisaron ${data.resultados.length} documentos.`;
+                
+                // Pintamos la tabla
+                data.resultados.forEach(item => {
+                    let colorFila = '';
+                    let iconoVeredicto = '';
+                    
+                    if (item.estado === 'success') {
+                        colorFila = 'rgba(92, 184, 92, 0.1)'; // Verde suave
+                        iconoVeredicto = '✅ COINCIDE';
+                    } else if (item.estado === 'warning') {
+                        colorFila = 'rgba(240, 173, 78, 0.1)'; // Naranja suave
+                        iconoVeredicto = '⚠️ NO ENTRENADO';
+                    } else {
+                        colorFila = 'rgba(217, 83, 79, 0.1)'; // Rojo suave
+                        iconoVeredicto = '❌ DISCREPANCIA';
+                    }
+
+                    const filaHTML = `
+                        <tr style="border-bottom: 1px solid var(--input-border); background-color: ${colorFila};">
+                            <td style="padding: 10px;"><strong>${item.archivo}</strong></td>
+                            <td style="padding: 10px;">${item.matriz} - ${item.subproceso}</td>
+                            <td style="padding: 10px;">${item.esperado}</td>
+                            <td style="padding: 10px; font-weight: bold;">${item.prediccion}</td>
+                            <td style="padding: 10px;">${iconoVeredicto}</td>
+                        </tr>
+                    `;
+                    tablaCuerpo.innerHTML += filaHTML;
+                });
+            })
+            .catch(err => {
+                btnAuditar.disabled = false;
+                btnAuditar.innerText = '▶️ Iniciar Auditoría de Lote Actual';
+                textoEstado.innerHTML = '<span style="color: #d9534f;">❌ Falló la conexión con el servidor.</span>';
+            });
+        });
+    </script>

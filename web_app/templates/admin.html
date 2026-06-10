@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Administración - CDC</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo_banco.css') }}">
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo-container">
+            <img class="brand-logo" src="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-light="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-dark="{{ url_for('static', filename='img/logo_blanco.png') }}" 
+                 alt="Intexus Logo">
+            <span class="brand-title">Auditor Inteligente CDC</span>
+        </div>
+        
+        <div class="nav-controls">
+            <button class="theme-toggle">🌗</button>
+            <span>👤 {{ usuario }} ({{ rol }})</span>
+            
+            <a href="/dashboard">⬅️ Volver</a>
+            
+            <a href="/logout">🚪 Cerrar Sesión</a>
+        </div>
+    </div>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <h2>📂 Enseñar Nuevo Documento a la IA</h2>
+            <p> Selecciona o crea un nuevo tipo documental.</p>
+            
+            <form action="/admin/subir_documentos" method="POST" enctype="multipart/form-data">
+                
+                <div style="display: flex; gap: 20px; margin-bottom: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>1. Matriz (Tipo Persona):</label>
+                        <select name="matriz" class="form-control" required>
+                            <option value="" disabled selected>Seleccione...</option>
+                            <option value="BT">Natural (BT)</option>
+                            <option value="BR">Jurídica (BR)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="flex: 1;">
+                        <label>2. Proceso / Subproceso:</label>
+                        <input type="text" name="subproceso" class="form-control" placeholder="Ej: CCD, ACT, PPC..." required style="text-transform: uppercase;">
+                        <small style="color: var(--text-main); opacity: 0.7;">Escribe el código exacto del proceso.</small>
+                    </div>
+
+                </div>
+
+                <div class="form-group">
+                    <label>3. Nombre del Tipo Documental (Etiqueta exacta):</label>
+                    <input type="text" name="clase_documento" class="form-control" placeholder="Ej: REC CartaDeResidencia" required>
+                </div>
+
+                <div class="form-group">
+                    <label>4. Subir Archivos de Ejemplo (TIF, PDF, JPG):</label>
+                    <input type="file" name="archivos" class="form-control" multiple required accept=".tif,.tiff,.pdf,.jpg,.png">
+                </div>
+
+                <button type="submit" class="btn btn-success" style="width: 100%;">Subir Archivos y Crear Categoría</button>
+            </form>
+        </div>
+
+        <div class="card" style="border-left: 5px solid var(--color-action-purple); border-top: 4px solid var(--color-action-purple);">
+            <h2>🧠 Re-Entrenamiento Global</h2>
+            <p>Una vez que hayas subido los nuevos documentos, presiona este botón para despertar al Maestro IA.</p>
+            <button id="btn-entrenar" class="btn btn-action-purple">
+                🔄 Procesar Nuevos Documentos y Actualizar Modelos
+            </button>
+        </div>
+    </div>
+
+    <div id="modal-carga" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; transition: 0.3s;">
+        <div class="card" style="width: 450px; text-align: center; border-top: 4px solid var(--border-accent);">
+            <h3 id="modal-titulo" style="color: var(--text-heading);">Despertando IA...</h3>
+            <p id="modal-texto" style="font-size: 1.1rem; color: var(--text-main);">
+                Orden recibida<span class="animated-dots"></span>
+            </p>
+            
+            <div style="margin-top: 25px; position: relative;">
+                <div style="width: 100%; background: var(--input-bg); border-radius: 10px; height: 30px; overflow: hidden; border: 1px solid var(--input-border);">
+                    <div id="barra-progreso" style="width: 0%; height: 100%; background: var(--border-accent); transition: width 0.5s;"></div>
+                </div>
+                <div id="porcentaje-texto" style="position: absolute; top: 0; left: 0; width: 100%; height: 30px; display: flex; justify-content: center; align-items: center; font-weight: bold; color: var(--text-main);">
+                    0%
+                </div>
+            </div>
+            
+            <button id="btn-cerrar-modal" class="btn btn-primary" style="display: none; margin-top: 25px; width: 100%;">¡Entendido! Cerrar y Continuar</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    
+    <script>
+        const btnEntrenar = document.getElementById('btn-entrenar');
+        const modal = document.getElementById('modal-carga');
+        const titulo = document.getElementById('modal-titulo');
+        const texto = document.getElementById('modal-texto');
+        const barra = document.getElementById('barra-progreso');
+        const porcentajeTexto = document.getElementById('porcentaje-texto');
+        const btnCerrar = document.getElementById('btn-cerrar-modal');
+        let intervalo;
+
+        function actualizarUIProgreso(valor, colorVal) {
+            barra.style.width = valor + '%';
+            porcentajeTexto.innerText = valor + '%';
+            if (colorVal) barra.style.background = colorVal;
+        }
+
+        btnEntrenar.addEventListener('click', () => {
+            if(!confirm('¿Seguro que deseas iniciar el re-entrenamiento global de Intexus?')) return;
+            
+            modal.style.display = 'flex';
+            // Arranca en Verde Lima
+            actualizarUIProgreso(5, 'var(--border-accent)'); 
+            titulo.innerText = 'Inicializando el Motor IA...';
+            // Título vuelve a su color normal
+            titulo.style.color = 'var(--text-heading)'; 
+            btnCerrar.style.display = 'none';
+
+            fetch('/admin/entrenar', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                titulo.innerText = 'Procesamiento en Backend';
+                texto.innerHTML = 'Aprendiendo<span class="animated-dots"></span>';
+                
+                let progresoFalso = 10;
+                
+                // 2. Preguntar cada 2 segundos al backend cómo va
+                intervalo = setInterval(() => {
+                    fetch('/admin/estado_entrenamiento')
+                    .then(res => res.json())
+                    .then(estadoData => {
+                        if(estadoData.estado === 'procesando') {
+                            // Avanzamos la barra lentamente, pero le ponemos un FRENO EXACTO en 99%
+                            if(progresoFalso < 99) {
+                                progresoFalso += 7;
+                                if(progresoFalso > 99) progresoFalso = 99; // Nunca pasará de 99 mientras espera
+                            }
+                            actualizarUIProgreso(progresoFalso);
+                        } else {
+                            // ¡Terminó con éxito!
+                            clearInterval(intervalo);
+                            actualizarUIProgreso(100, '#5cb85c'); // Brinca a 100% en color Verde éxito
+                            titulo.innerText = '¡Entrenamiento Exitoso!';
+                            titulo.style.color = '#5cb85c';
+                            texto.innerText = 'Tipos documentales aprendidos con éxito.';
+                            btnCerrar.style.display = 'block';
+                        }
+                    });
+                }, 2000);
+            });
+        });
+
+        btnCerrar.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+    </script>
+    </script>
+</body>
+</html>

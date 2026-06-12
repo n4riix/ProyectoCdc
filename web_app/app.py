@@ -1,22 +1,27 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from core.db_models import inicializar_base_datos, verificar_usuario
-from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida
-from werkzeug.utils import secure_filename
 import os
 import shutil
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
-# Importamos nuestro nuevo motor auditor
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from werkzeug.utils import secure_filename
+
+# --- IMPORTACIONES DE TU NÚCLEO (CORE) ---
+from core.db_models import inicializar_base_datos, verificar_usuario
+from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida
 from core.auditor import procesar_lote_kofax
 
-# --- INICIO CONFIGURACIÓN DE LOGS CORPORATIVOS ---
+# ==========================================
+# 1. CONFIGURACIÓN DE CARPETAS Y LOGS
+# ==========================================
 base_dir = os.path.dirname(os.path.abspath(__file__))
 log_dir = os.path.join(base_dir, '..', 'volumen_compartido', 'logs')
 os.makedirs(log_dir, exist_ok=True) # Crea la carpeta si no existe
 
 log_file = os.path.join(log_dir, 'intexus_auditor.log')
 
-#  cómo se verá cada línea (Fecha, Hora, Nivel de Alerta, Mensaje)
+# Definimos cómo se verá cada línea (Fecha, Hora, Nivel de Alerta, Mensaje)
 formato_log = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 # Manejador 1: Escribe en el archivo de texto (Máximo 5MB por archivo, guarda 3 históricos)
@@ -38,12 +43,23 @@ logging.getLogger('werkzeug').setLevel(logging.WARNING)
 # --- FIN CONFIGURACIÓN DE LOGS ---
 
 app = Flask(__name__)
+
+# ==========================================
+# 2. INICIALIZACIÓN DE FLASK Y SEGURIDAD
+# ==========================================
+# Obtenemos la llave inyectada por Docker (.env)
 app.secret_key = os.environ.get('SECRET_KEY')
+
+# Blindaje: Si no hay llave, detenemos el sistema por seguridad
+if not app.secret_key:
+    raise ValueError("🚨 ¡ALERTA DE SEGURIDAD! Falta la variable SECRET_KEY en el entorno.")
 
 with app.app_context():
     inicializar_base_datos()
 
-# --- MIDDLEWARE DE SEGURIDAD ---
+# ==========================================
+# 3. MIDDLEWARE DE SEGURIDAD (Rutas Protegidas)
+# ==========================================
 def login_requerido(f):
     def wrap(*args, **kwargs):
         if 'usuario' not in session:
@@ -53,7 +69,9 @@ def login_requerido(f):
     wrap.__name__ = f.__name__
     return wrap
 
-# --- RUTAS PRINCIPALES ---
+# ==========================================
+# 4. RUTAS PRINCIPALES Y DE AUDITORÍA
+# ==========================================
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -75,7 +93,6 @@ def login():
 def dashboard():
     return render_template('dashboard.html', usuario=session['usuario'], rol=session['rol'])
 
-# --- RUTA PARA EJECUTAR LA AUDITORÍA DE KOFAX ---
 @app.route('/api/auditar_lote', methods=['POST'])
 @login_requerido
 def api_auditar_lote():
@@ -83,7 +100,9 @@ def api_auditar_lote():
     respuesta = procesar_lote_kofax()
     return jsonify(respuesta)
 
-# --- RUTAS DE ADMINISTRACIÓN Y ENTRENAMIENTO ---
+# ==========================================
+# 5. RUTAS DE ADMINISTRACIÓN Y ENTRENAMIENTO
+# ==========================================
 @app.route('/admin')
 @login_requerido
 def admin():

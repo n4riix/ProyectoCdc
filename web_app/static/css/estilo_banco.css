@@ -1,12 +1,13 @@
 /* VARIABLES GLOBALES ACTUALIZADAS (MODO CLARO) */
+/* VARIABLES GLOBALES ACTUALIZADAS (MODO CLARO MÁS SUAVE) */
 :root {
-    --bg-body: #f4f7f6;
-    --bg-card: #ffffff;
+    --bg-body: #eef2f1;      /* Gris perlado muy suave para el fondo */
+    --bg-card: #f8fbfb;      /* Blanco roto/hueso para las tarjetas (no lastima los ojos) */
     --text-main: #333333;
-    --text-heading: #174a45; /* Verde petróleo Intexus */
-    --nav-bg: #ffffff;
+    --text-heading: #174a45; 
+    --nav-bg: #f8fbfb;
     --nav-text: #174a45;
-    --border-accent: #d4f554; /* Verde lima Intexus */
+    --border-accent: #d4f554; 
     
     /* Paleta de botones */
     --btn-primary-bg: #174a45;
@@ -14,13 +15,11 @@
     --btn-success-bg: #d4f554;
     --btn-success-text: #174a45;
     --btn-danger-bg: #d9534f;
-    
-    /* NUEVO: Tercer color corporativo de Intexus */
     --color-action-purple: #9E8CE7; 
     
-    --input-bg: #fafafa;
-    --input-border: #ddd;
-    --card-shadow: rgba(0,0,0,0.05);
+    --input-bg: #ffffff;
+    --input-border: #dcdcdc;
+    --card-shadow: rgba(0,0,0,0.04);
 }
 
 /* MODO OSCURO ACTUALIZADO (DARK MODE) */
@@ -112,3 +111,90 @@ body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-body); co
     60%, 100% { content: "..."; }
 }
 .animated-dots::after { content: ""; animation: loading-dots 1.5s infinite; }
+
+/* --- ESTILOS ESPECÍFICOS PARA EL LOGIN --- */
+body.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+}
+
+.login-wrapper {
+    width: 100%;
+    max-width: 420px;
+    padding: 20px;
+}
+
+.login-card {
+    padding: 40px 30px;
+    border-top: 5px solid var(--border-accent);
+}
+
+.alert {
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.alert-danger {
+    background-color: var(--btn-danger-bg);
+    color: white;
+}
+
+/* --- CORRECCIÓN DE ALINEACIÓN DE CAJAS (BOX MODEL) --- */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+.form-group {
+    width: 100%;
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+/* ESTILOS PARA ACORDEÓN DESPLEGABLE (MODELOS IA) */
+details.modulo-ia {
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    padding: 12px;
+    transition: all 0.3s ease;
+}
+details.modulo-ia[open] {
+    border-color: var(--color-action-purple);
+    box-shadow: 0 4px 10px var(--card-shadow);
+}
+details.modulo-ia > summary {
+    font-weight: bold;
+    font-size: 1.05rem;
+    cursor: pointer;
+    color: var(--text-heading);
+    list-style: none;
+    display: flex;
+    align-items: center;
+}
+details.modulo-ia > summary::-webkit-details-marker { display: none; }
+details.modulo-ia > summary::before {
+    content: '▶';
+    font-size: 0.8rem;
+    margin-right: 10px;
+    transition: transform 0.3s;
+    color: var(--color-action-purple);
+}
+details.modulo-ia[open] > summary::before { transform: rotate(90deg); }
+.contenido-desplegable {
+    padding: 15px 10px 5px 25px;
+    border-top: 1px dashed var(--input-border);
+    margin-top: 10px;
+}

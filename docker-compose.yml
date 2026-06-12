@@ -17,7 +17,14 @@ services:
       - ./web_app:/app
       - ./volumen_compartido:/volumen_compartido
       - ./volumen_compartido/paddle_modelos:/home/appuser/.paddleocr
+    # 🚀 MOTOR GUNICORN: 2 workers, puerto 5000, 10 min timeout
+    command: gunicorn --workers 2 --bind 0.0.0.0:5000 --timeout 600 app:app
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'      # Máximo 1 hilo del Ryzen para la web
+          memory: 1G       # Máximo 1 GB de RAM
 
   # ----------------------------------------------------
   # SERVICIO 2: EL ENTRENADOR DE IA (Bajo Demanda)
@@ -33,4 +40,10 @@ services:
       - ./trainer_app:/app
       - ./volumen_compartido:/volumen_compartido
       - ./volumen_compartido/paddle_modelos:/home/appuser/.paddleocr
-    # Sin 'restart' ni puertos, se queda dormido hasta que lo llamemos
+    # 🔄 Le agregamos restart para que el vigilante (daemon) reviva si el PC se apaga
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.5'      # BOZAL: Máximo 2.5 hilos (de los 4 que tiene tu Ryzen)
+          memory: 4.5G     # BOZAL: Máximo 4.5 GB de RAM (Tienes 6.7 libres)

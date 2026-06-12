@@ -9,8 +9,36 @@ from datetime import datetime
 # Importamos nuestro nuevo motor auditor
 from core.auditor import procesar_lote_kofax
 
+# --- INICIO CONFIGURACIÓN DE LOGS CORPORATIVOS ---
+base_dir = os.path.dirname(os.path.abspath(__file__))
+log_dir = os.path.join(base_dir, '..', 'volumen_compartido', 'logs')
+os.makedirs(log_dir, exist_ok=True) # Crea la carpeta si no existe
+
+log_file = os.path.join(log_dir, 'intexus_auditor.log')
+
+# Definimos cómo se verá cada línea (Fecha, Hora, Nivel de Alerta, Mensaje)
+formato_log = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+# Manejador 1: Escribe en el archivo de texto (Máximo 5MB por archivo, guarda 3 históricos)
+file_handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=3, encoding='utf-8')
+file_handler.setFormatter(formato_log)
+
+# Manejador 2: Imprime en la consola de Docker (para que sigamos viéndolo en vivo)
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formato_log)
+
+# Configuramos el registrador principal
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# Silenciamos un poco el ruido de Flask para que no ensucie nuestra bitácora
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+# --- FIN CONFIGURACIÓN DE LOGS ---
+
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'cdc_banco_secreto_super_seguro')
+app.secret_key = os.environ.get('SECRET_KEY')
 
 with app.app_context():
     inicializar_base_datos()

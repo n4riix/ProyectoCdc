@@ -12,7 +12,7 @@ services:
       - "5000:5000"
     environment:
       - PYTHONUNBUFFERED=1
-      - SECRET_KEY=cdc_banco_secreto_super_seguro
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
       - ./web_app:/app
       - ./volumen_compartido:/volumen_compartido
@@ -28,7 +28,7 @@ services:
     container_name: cdc_trainer
     environment:
       - PYTHONUNBUFFERED=1
-      - SECRET_KEY=cdc_banco_secreto_super_seguro
+      - SECRET_KEY=${SECRET_KEY}
     volumes:
       - ./trainer_app:/app
       - ./volumen_compartido:/volumen_compartido

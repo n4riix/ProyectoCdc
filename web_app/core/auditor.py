@@ -1,19 +1,18 @@
 import os
 import glob
 import csv
+import logging
 from .ocr_engine import MotorOCR
 from .routing_ia import predecir_documento
 
+
 def procesar_lote_kofax():
-    print("🔍 [Auditor] Iniciando revisión del lote Kofax (Estructura Intexus 16 campos)...")
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    logging.info("🔍 [Auditor] Iniciando revisión del lote Kofax (Estructura Intexus 16 campos)...")
     
-    # Ruta donde el banco (Kofax) deja los expedientes
-    lote_dir = os.path.join(base_dir, '..', 'volumen_compartido', 'lote_kofax')
+    lote_dir = '/volumen_compartido/lote_kofax'
     os.makedirs(lote_dir, exist_ok=True)
     
-    # Busca cualquier archivo que empiece con "Indice_" y termine en ".txt"
-    archivos_indice = glob.glob(os.path.join(lote_dir, 'Indice_*.txt'))
+    logging.info(f"🕵️‍♂️ [RADAR] Buscando índices en: {lote_dir}")
     
     if not archivos_indice:
         return {"error": "No se encontró ningún archivo 'Indice_*.txt' en la carpeta 'lote_kofax'."}

@@ -1,13 +1,35 @@
-# Caché de Python
+# ========================
+# ARCHIVOS DEL SISTEMA Y SO
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# CACHÉ Y COMPILADOS PYTHON
+# ========================
 __pycache__/
 *.py[cod]
+*$py.class
+.pytest_cache/
 
-# Base de datos
-*.db
-*.sqlite3
-
-# Volumen Compartido (No subir documentos ni modelos pesados)
-volumen_compartido/
-
-# Variables de entorno o secretos (si los agregas a futuro)
+# ========================
+# SEGURIDAD Y SECRETOS (¡CRÍTICO!)
+# ========================
 .env
+yes
+yes.pub
+*.pem
+*.key
+
+# ========================
+# BASES DE DATOS Y LOGS
+# ========================
+*.sqlite3
+*.db
+*.log
+
+# ========================
+# VOLUMEN COMPARTIDO DE DOCKER
+# ========================
+# No subimos el volumen porque ahí están los documentos reales del banco y los cerebros pesados.
+volumen_compartido/

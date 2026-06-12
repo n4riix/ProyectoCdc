@@ -71,6 +71,23 @@ body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-body); co
 .small-card strong { display: block; margin-bottom: 8px; }
 .small-card p { margin: 0; color: var(--text-main); font-size: 0.95rem; line-height: 1.4; }
 
+/* Tabs for compact inventory/models */
+.tabs { display:flex; gap:8px; }
+.tab { padding:8px 12px; border-radius:6px; border:1px solid transparent; background: transparent; cursor:pointer; color:var(--text-main); }
+.tab.active { background:var(--input-bg); border-color:var(--input-border); box-shadow: 0 2px 6px var(--card-shadow); }
+.tab-content { margin-top:12px; }
+.compact-table { width:100%; border-collapse: collapse; font-size:0.95rem; }
+.compact-table th, .compact-table td { text-align:left; padding:10px 12px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.compact-table thead th { font-weight:700; color:var(--text-heading); }
+.compact-table tr:hover td { background: rgba(0,0,0,0.02); }
+.tab-pane { display:none; }
+.tab-pane.active { display:block; }
+
+/* Chips for class labels */
+.chip { display:inline-block; background: rgba(0,0,0,0.06); color: var(--text-main); padding:6px 10px; border-radius:999px; margin:2px 6px 2px 0; font-size:0.85rem; }
+.chip:hover { background: rgba(0,0,0,0.10); }
+
+
 /* Botones base */
 .btn { padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 15px; font-weight: bold; text-decoration: none; display: inline-block; transition: all 0.3s ease; }
 .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 8px var(--card-shadow); }

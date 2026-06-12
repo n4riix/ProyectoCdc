@@ -16,7 +16,7 @@ services:
     volumes:
       - ./web_app:/app
       - ./volumen_compartido:/volumen_compartido
-      - ./volumen_compartido/paddle_modelos:/root/.paddleocr
+      - ./volumen_compartido/paddle_modelos:/home/appuser/.paddleocr
     restart: unless-stopped
 
   # ----------------------------------------------------
@@ -32,5 +32,5 @@ services:
     volumes:
       - ./trainer_app:/app
       - ./volumen_compartido:/volumen_compartido
-      - ./volumen_compartido/paddle_modelos:/root/.paddleocr
+      - ./volumen_compartido/paddle_modelos:/home/appuser/.paddleocr
     # Sin 'restart' ni puertos, se queda dormido hasta que lo llamemos

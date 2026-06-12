@@ -3,6 +3,8 @@ from core.db_models import inicializar_base_datos, verificar_usuario
 from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida
 from werkzeug.utils import secure_filename
 import os
+import shutil
+from datetime import datetime
 
 # Importamos nuestro nuevo motor auditor
 from core.auditor import procesar_lote_kofax
@@ -136,6 +138,17 @@ def estado_entrenamiento():
         return jsonify({"estado": "procesando"})
     else:
         return jsonify({"estado": "listo"})
+
+@app.route('/admin/refresh_inventario')
+@login_requerido
+def refresh_inventario():
+    """Retorna el inventario y los modelos conocidos en JSON para actualización parcial del UI."""
+    inventario = obtener_inventario_tipos_documentales()
+    modelos = obtener_modelos_conocidos()
+    return jsonify({
+        'inventario': inventario,
+        'modelos': modelos
+    })
 
 @app.route('/logout')
 def logout():

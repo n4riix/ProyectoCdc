@@ -35,8 +35,76 @@
         {% endwith %}
 
         <div class="card">
-            <h2>📂 Enseñar Nuevo Documento a la IA</h2>
-            <p> Selecciona o crea un nuevo tipo documental.</p>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="margin:0">Inventario y Modelos IA</h2>
+                <div style="font-size:0.95rem; color:var(--text-main);">Resumen rápido · <strong>{{ inventario | length if inventario else 0 }}</strong> matrices</div>
+            </div>
+
+            <div class="tabs" style="margin-top:18px;">
+                <button class="tab active" data-target="tab-inventario">📦 Inventario</button>
+                <button class="tab" data-target="tab-modelos">🧩 Modelos</button>
+            </div>
+
+            <div class="tab-content" style="margin-top:16px;">
+                <div id="tab-inventario" class="tab-pane active">
+                    {% if inventario %}
+                        <table class="compact-table">
+                            <thead>
+                                <tr><th>Matriz</th><th>Subproceso</th><th>Clases</th></tr>
+                            </thead>
+                            <tbody>
+                            {% for matriz, subprocesos in inventario.items() %}
+                                {% for subproceso, clases in subprocesos.items() %}
+                                    <tr>
+                                        <td>{{ matriz }}</td>
+                                        <td>{{ subproceso }}</td>
+                                        <td>
+                                            {% for c in clases %}
+                                                <span class="chip">{{ c }}</span>
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No se encontraron tipos documentales cargados.</p>
+                    {% endif %}
+                </div>
+
+                <div id="tab-modelos" class="tab-pane">
+                    {% if modelos_conocidos %}
+                        <table class="compact-table">
+                            <thead>
+                                <tr><th>Matriz</th><th>Subproceso</th><th>Clases (IA)</th></tr>
+                            </thead>
+                            <tbody>
+                            {% for matriz, subprocesos in modelos_conocidos.items() %}
+                                {% for subproceso, info in subprocesos.items() %}
+                                    <tr>
+                                        <td>{{ matriz }}</td>
+                                        <td>{{ subproceso }}</td>
+                                        <td>
+                                            {% for c in info.clases %}
+                                                <span class="chip">{{ c }}</span>
+                                            {% endfor %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No hay modelos entrenados disponibles.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📂 Entrenamiento de la IA</h2>
+            <p> Crear tipo documental</p>
             
             <form action="/admin/subir_documentos" method="POST" enctype="multipart/form-data">
                 
@@ -73,60 +141,17 @@
         </div>
 
         <div class="card" style="border-left: 5px solid var(--color-action-purple); border-top: 4px solid var(--color-action-purple);">
-            <h2>🧠 Re-Entrenamiento Global</h2>
-            <p>Una vez que hayas subido los nuevos documentos, presiona este botón para despertar al Maestro IA.</p>
-            <button id="btn-entrenar" class="btn btn-action-purple">
-                🔄 Procesar Nuevos Documentos y Actualizar Modelos
+            <h2>🧠 Entrenamiento</h2>
+            <p>Una vez que hayas subido los nuevos documentos, presiona este botón para entrenar a la IA.</p>
+            <button id="btn-entrenar" type="button" class="btn btn-action-purple">
+                🔄 Procesar Documentos y Actualizar Modelos
             </button>
-        </div>
-    </div>
-
-    <div class="container">
-        <div class="card" style="border-left: 5px solid var(--color-action-green); border-top: 4px solid var(--color-action-green);">
-            <h2>📦 Inventario de Tipos Documentales para Entrenamiento</h2>
-            <p>Estos son los tipos documentales que ya existen en el dataset.</p>
-            {% if inventario %}
-                {% for matriz, subprocesos in inventario.items() %}
-                    <div class="section-group">
-                        <h3>{{ matriz }} - {{ 'Natural' if matriz == 'BT' else 'Jurídica' }}</h3>
-                        {% for subproceso, clases in subprocesos.items() %}
-                            <div class="small-card">
-                                <strong>{{ subproceso }}</strong>
-                                <p>{{ clases | join(', ') }}</p>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p>No se encontraron tipos documentales cargados.</p>
-            {% endif %}
-        </div>
-
-        <div class="card" style="border-left: 5px solid var(--color-action-sky); border-top: 4px solid var(--color-action-sky);">
-            <h2>🧩 Modelos Conocidos por la IA</h2>
-            <p>Estos son los modelos que la IA puede usar por matriz y proceso.</p>
-            {% if modelos_conocidos %}
-                {% for matriz, subprocesos in modelos_conocidos.items() %}
-                    <div class="section-group">
-                        <h3>{{ matriz }} - {{ 'Natural' if matriz == 'BT' else 'Jurídica' }}</h3>
-                        {% for subproceso, info in subprocesos.items() %}
-                            <div class="small-card">
-                                <strong>{{ subproceso }}</strong>
-                                <p>Estado: <span style="font-weight: 700;">{{ 'Entrenado' if info.entrenado else 'No Entrenado' }}</span></p>
-                                <p>Clases: {{ info.clases | join(', ') }}</p>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p>No hay modelos entrenados disponibles.</p>
-            {% endif %}
         </div>
     </div>
 
     <div id="modal-carga" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; transition: 0.3s;">
         <div class="card" style="width: 450px; text-align: center; border-top: 4px solid var(--border-accent);">
-            <h3 id="modal-titulo" style="color: var(--text-heading);">Despertando IA...</h3>
+            <h3 id="modal-titulo" style="color: var(--text-heading);">Entrenando IA...</h3>
             <p id="modal-texto" style="font-size: 1.1rem; color: var(--text-main);">
                 Orden recibida<span class="animated-dots"></span>
             </p>
@@ -147,68 +172,109 @@
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     
     <script>
-        const btnEntrenar = document.getElementById('btn-entrenar');
-        const modal = document.getElementById('modal-carga');
-        const titulo = document.getElementById('modal-titulo');
-        const texto = document.getElementById('modal-texto');
-        const barra = document.getElementById('barra-progreso');
-        const porcentajeTexto = document.getElementById('porcentaje-texto');
-        const btnCerrar = document.getElementById('btn-cerrar-modal');
-        let intervalo;
+        // Tabs simple
+        document.addEventListener('DOMContentLoaded', () => {
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(t => t.addEventListener('click', (e) => {
+                tabs.forEach(x => x.classList.remove('active'));
+                e.currentTarget.classList.add('active');
 
-        function actualizarUIProgreso(valor, colorVal) {
-            barra.style.width = valor + '%';
-            porcentajeTexto.innerText = valor + '%';
-            if (colorVal) barra.style.background = colorVal;
-        }
+                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+                const target = e.currentTarget.getAttribute('data-target');
+                const pane = document.getElementById(target);
+                if (pane) pane.classList.add('active');
+            }));
 
-        btnEntrenar.addEventListener('click', () => {
-            if(!confirm('¿Seguro que deseas iniciar el re-entrenamiento global de Intexus?')) return;
-            
-            modal.style.display = 'flex';
-            // Arranca en Verde Lima
-            actualizarUIProgreso(5, 'var(--border-accent)'); 
-            titulo.innerText = 'Inicializando el Motor IA...';
-            // Título vuelve a su color normal
-            titulo.style.color = 'var(--text-heading)'; 
-            btnCerrar.style.display = 'none';
+            const btnEntrenar = document.getElementById('btn-entrenar');
+            const modal = document.getElementById('modal-carga');
+            const titulo = document.getElementById('modal-titulo');
+            const texto = document.getElementById('modal-texto');
+            const barra = document.getElementById('barra-progreso');
+            const porcentajeTexto = document.getElementById('porcentaje-texto');
+            const btnCerrar = document.getElementById('btn-cerrar-modal');
+            let intervalo;
 
-            fetch('/admin/entrenar', { method: 'POST' })
-            .then(res => res.json())
-            .then(data => {
-                titulo.innerText = 'Procesamiento en Backend';
-                texto.innerHTML = 'Aprendiendo<span class="animated-dots"></span>';
+            function actualizarUIProgreso(valor, colorVal) {
+                barra.style.width = valor + '%';
+                porcentajeTexto.innerText = valor + '%';
+                if (colorVal) barra.style.background = colorVal;
+            }
+
+            btnEntrenar.addEventListener('click', () => {
+                if(!confirm('¿Seguro que deseas iniciar el re-entrenamiento global de Intexus?')) return;
                 
-                let progresoFalso = 10;
-                
-                // 2. Preguntar cada 2 segundos al backend cómo va
-                intervalo = setInterval(() => {
-                    fetch('/admin/estado_entrenamiento')
-                    .then(res => res.json())
-                    .then(estadoData => {
-                        if(estadoData.estado === 'procesando') {
-                            // Avanzamos la barra lentamente, pero le ponemos un FRENO EXACTO en 99%
-                            if(progresoFalso < 99) {
-                                progresoFalso += 7;
-                                if(progresoFalso > 99) progresoFalso = 99; // Nunca pasará de 99 mientras espera
+                btnEntrenar.disabled = true;
+                modal.style.display = 'flex';
+                // Arranca en Verde Lima
+                actualizarUIProgreso(5, 'var(--border-accent)'); 
+                titulo.innerText = 'Inicializando el Motor IA...';
+                // Título vuelve a su color normal
+                titulo.style.color = 'var(--text-heading)'; 
+                btnCerrar.style.display = 'none';
+
+                fetch('/admin/entrenar', { method: 'POST' })
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`HTTP ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    titulo.innerText = 'Procesamiento en Backend';
+                    texto.innerHTML = 'Aprendiendo<span class="animated-dots"></span>';
+                    
+                    let progresoFalso = 10;
+                    
+                    // 2. Preguntar cada 2 segundos al backend cómo va
+                    intervalo = setInterval(() => {
+                        fetch('/admin/estado_entrenamiento')
+                        .then(res => {
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                            return res.json();
+                        })
+                        .then(estadoData => {
+                            if(estadoData.estado === 'procesando') {
+                                if(progresoFalso < 99) {
+                                    progresoFalso += 7;
+                                    if(progresoFalso > 99) progresoFalso = 99; 
+                                }
+                                actualizarUIProgreso(progresoFalso);
+                            } else {
+                                clearInterval(intervalo);
+                                actualizarUIProgreso(100, '#5cb85c');
+                                titulo.innerText = '¡Entrenamiento Exitoso!';
+                                titulo.style.color = '#5cb85c';
+                                texto.innerText = 'Tipos documentales aprendidos con éxito.';
+                                btnCerrar.style.display = 'block';
+                                setTimeout(() => { window.location.reload(); }, 1200);
                             }
-                            actualizarUIProgreso(progresoFalso);
-                        } else {
-                            // ¡Terminó con éxito!
+                        })
+                        .catch(err => {
                             clearInterval(intervalo);
-                            actualizarUIProgreso(100, '#5cb85c'); // Brinca a 100% en color Verde éxito
-                            titulo.innerText = '¡Entrenamiento Exitoso!';
-                            titulo.style.color = '#5cb85c';
-                            texto.innerText = 'Tipos documentales aprendidos con éxito.';
+                            btnEntrenar.disabled = false;
+                            titulo.innerText = 'Error de Conexión';
+                            texto.innerText = 'No se pudo verificar el estado del entrenamiento.';
                             btnCerrar.style.display = 'block';
-                        }
-                    });
-                }, 2000);
+                            console.error('Estado entrenamiento fetch error', err);
+                        });
+                    }, 2000);
+                })
+                .catch(err => {
+                    btnEntrenar.disabled = false;
+                    titulo.innerText = 'Error al iniciar';
+                    texto.innerText = `No se pudo enviar la orden de re-entrenamiento: ${err.message}`;
+                    btnCerrar.style.display = 'block';
+                    console.error('Entrenar fetch error', err);
+                });
             });
-        });
 
-        btnCerrar.addEventListener('click', () => {
-            modal.style.display = 'none';
+            btnCerrar.addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
         });
     </script>
 </body>

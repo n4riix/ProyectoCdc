@@ -16,7 +16,7 @@ os.makedirs(log_dir, exist_ok=True) # Crea la carpeta si no existe
 
 log_file = os.path.join(log_dir, 'intexus_auditor.log')
 
-# Definimos cómo se verá cada línea (Fecha, Hora, Nivel de Alerta, Mensaje)
+#  cómo se verá cada línea (Fecha, Hora, Nivel de Alerta, Mensaje)
 formato_log = logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 # Manejador 1: Escribe en el archivo de texto (Máximo 5MB por archivo, guarda 3 históricos)

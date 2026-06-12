@@ -81,6 +81,49 @@
         </div>
     </div>
 
+    <div class="container">
+        <div class="card" style="border-left: 5px solid var(--color-action-green); border-top: 4px solid var(--color-action-green);">
+            <h2>📦 Inventario de Tipos Documentales para Entrenamiento</h2>
+            <p>Estos son los tipos documentales que ya existen en el dataset.</p>
+            {% if inventario %}
+                {% for matriz, subprocesos in inventario.items() %}
+                    <div class="section-group">
+                        <h3>{{ matriz }} - {{ 'Natural' if matriz == 'BT' else 'Jurídica' }}</h3>
+                        {% for subproceso, clases in subprocesos.items() %}
+                            <div class="small-card">
+                                <strong>{{ subproceso }}</strong>
+                                <p>{{ clases | join(', ') }}</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No se encontraron tipos documentales cargados.</p>
+            {% endif %}
+        </div>
+
+        <div class="card" style="border-left: 5px solid var(--color-action-sky); border-top: 4px solid var(--color-action-sky);">
+            <h2>🧩 Modelos Conocidos por la IA</h2>
+            <p>Estos son los modelos que la IA puede usar por matriz y proceso.</p>
+            {% if modelos_conocidos %}
+                {% for matriz, subprocesos in modelos_conocidos.items() %}
+                    <div class="section-group">
+                        <h3>{{ matriz }} - {{ 'Natural' if matriz == 'BT' else 'Jurídica' }}</h3>
+                        {% for subproceso, info in subprocesos.items() %}
+                            <div class="small-card">
+                                <strong>{{ subproceso }}</strong>
+                                <p>Estado: <span style="font-weight: 700;">{{ 'Entrenado' if info.entrenado else 'No Entrenado' }}</span></p>
+                                <p>Clases: {{ info.clases | join(', ') }}</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No hay modelos entrenados disponibles.</p>
+            {% endif %}
+        </div>
+    </div>
+
     <div id="modal-carga" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; transition: 0.3s;">
         <div class="card" style="width: 450px; text-align: center; border-top: 4px solid var(--border-accent);">
             <h3 id="modal-titulo" style="color: var(--text-heading);">Despertando IA...</h3>
@@ -167,7 +210,6 @@
         btnCerrar.addEventListener('click', () => {
             modal.style.display = 'none';
         });
-    </script>
     </script>
 </body>
 </html>

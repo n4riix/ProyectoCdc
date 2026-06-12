@@ -1,5 +1,6 @@
 import os
 import glob
+import csv
 from .ocr_engine import MotorOCR
 from .routing_ia import predecir_documento
 
@@ -24,66 +25,66 @@ def procesar_lote_kofax():
     # Encendemos el OCR en la memoria RAM
     motor_ocr = MotorOCR() 
 
+    # Usar csv.reader para manejar correctamente comillas y separadores
     with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
-        lineas = f.readlines()
+        reader = csv.reader(f)
 
-    for linea in lineas:
-        if not linea.strip(): continue
-        
-        separador = '|' if '|' in linea else (';' if ';' in linea else ',')
-        partes = linea.strip().split(separador)
-        
-        # Validar que sea una línea válida con al menos 16 campos
-        if len(partes) < 16: 
-            continue
-        
-        # --- MAPEO EXACTO DE LA ESTRUCTURA INTEXUS (16 CAMPOS) ---
-        subproceso = partes[8].strip().upper()
-        
-        # Extraemos la caja (ej: 'BT00123') y tomamos solo los 2 primeros caracteres ('BT')
-        caja_completa = partes[13].strip().upper()
-        matriz = caja_completa[:2] 
-        
-        tipo_esperado = partes[14].strip()
-        archivo = partes[15].strip()
-        
-        # Blindaje de extensión
-        if not (archivo.lower().endswith('.TIF') or archivo.lower().endswith('.pdf') or archivo.lower().endswith('.jpg')):
-            archivo += '.TIF'
+        for partes in reader:
+            if not partes or len(partes) < 16:
+                continue
 
-        ruta_imagen = os.path.join(lote_dir, archivo)
+            # --- MAPEO EXACTO DE LA ESTRUCTURA INTEXUS (16 CAMPOS) ---
+            subproceso = partes[8].strip().upper()
 
-        if not os.path.exists(ruta_imagen):
+            # Extraemos la caja (ej: 'BT00123') y tomamos solo los 2 primeros caracteres ('BT')
+            caja_completa = partes[13].strip().upper()
+            matriz = caja_completa[:2]
+
+            tipo_esperado = partes[14].strip()
+            archivo = partes[15].strip()
+
+            # Normalizar posible ausencia de extensión
+            archivo_lower = archivo.lower()
+            if not (archivo_lower.endswith('.tif') or archivo_lower.endswith('.pdf') or archivo_lower.endswith('.jpg')):
+                archivo += '.TIF'
+
+            ruta_imagen = os.path.join(lote_dir, archivo)
+
+            if not os.path.exists(ruta_imagen):
+                resultados.append({
+                    "archivo": archivo,
+                    "matriz": matriz,
+                    "subproceso": subproceso,
+                    "esperado": tipo_esperado,
+                    "prediccion": "ARCHIVO FÍSICO NO ENCONTRADO",
+                    "estado": "danger"
+                })
+                continue
+
+            # 1. Visión Artificial: Leemos el documento
+            texto = motor_ocr.extraer_texto(ruta_imagen)
+
+            # 2. Inferencia IA: Clasificamos
+            if not texto:
+                prediccion = "DOCUMENTO EN BLANCO / ILEGIBLE"
+            else:
+                prediccion = predecir_documento(texto, matriz, subproceso)
+
+            # 3. Auditoría: ¿Coincide?
+            if prediccion == "MODELO_NO_ENTRENADO":
+                estado = "warning"
+            elif prediccion == tipo_esperado:
+                estado = "success"
+            else:
+                estado = "danger"
+
             resultados.append({
-                "archivo": archivo, "esperado": tipo_esperado, 
-                "prediccion": "ARCHIVO FÍSICO NO ENCONTRADO", "estado": "danger"
+                "archivo": archivo,
+                "matriz": matriz,
+                "subproceso": subproceso,
+                "esperado": tipo_esperado,
+                "prediccion": prediccion,
+                "estado": estado
             })
-            continue
-
-        # 1. Visión Artificial: Leemos el documento
-        texto = motor_ocr.extraer_texto(ruta_imagen)
-
-        # 2. Inferencia IA: Clasificamos
-        if not texto:
-            prediccion = "DOCUMENTO EN BLANCO / ILEGIBLE"
-        else:
-            prediccion = predecir_documento(texto, matriz, subproceso)
-
-        # 3. Auditoría: ¿Coincide?
-        if prediccion == "MODELO_NO_ENTRENADO":
-            estado = "warning"
-        elif prediccion == tipo_esperado:
-            estado = "success"
-        else:
-            estado = "danger"
-
-        resultados.append({
-            "archivo": archivo,
-            "matriz": matriz,
-            "subproceso": subproceso,
-            "esperado": tipo_esperado,
-            "prediccion": prediccion,
-            "estado": estado
-        })
 
     return {"resultados": resultados}

@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from core.db_models import inicializar_base_datos, verificar_usuario
+from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida
 from werkzeug.utils import secure_filename
 import os
 
@@ -7,7 +8,7 @@ import os
 from core.auditor import procesar_lote_kofax
 
 app = Flask(__name__)
-app.secret_key = 'cdc_banco_secreto_super_seguro' 
+app.secret_key = os.environ.get('SECRET_KEY', 'cdc_banco_secreto_super_seguro')
 
 with app.app_context():
     inicializar_base_datos()
@@ -59,7 +60,17 @@ def admin():
     if session['rol'] != 'admin':
         flash("Acceso denegado. Módulo exclusivo para Administradores.", "danger")
         return redirect(url_for('dashboard'))
-    return render_template('admin.html', usuario=session['usuario'], rol=session['rol'])
+
+    inventario = obtener_inventario_tipos_documentales()
+    modelos_conocidos = obtener_modelos_conocidos()
+
+    return render_template(
+        'admin.html',
+        usuario=session['usuario'],
+        rol=session['rol'],
+        inventario=inventario,
+        modelos_conocidos=modelos_conocidos
+    )
 
 @app.route('/admin/subir_documentos', methods=['POST'])
 @login_requerido
@@ -83,13 +94,21 @@ def subir_documentos():
     os.makedirs(ruta_destino, exist_ok=True)
 
     guardados = 0
+    invalidos = 0
     for archivo in archivos:
         if archivo.filename:
             filename = secure_filename(archivo.filename)
+            if not extension_permitida(filename):
+                invalidos += 1
+                continue
             archivo.save(os.path.join(ruta_destino, filename))
             guardados += 1
 
-    flash(f"✅ Éxito: Se guardaron {guardados} archivos en la categoría '{clase_doc_segura}'.", "success")
+    mensaje = f"✅ Éxito: Se guardaron {guardados} archivos en la categoría '{clase_doc_segura}'."
+    if invalidos:
+        mensaje += f" ({invalidos} archivo(s) inválido(s) omitido(s). Use TIF, PDF, JPG o PNG)."
+
+    flash(mensaje, "success")
     return redirect(url_for('admin'))
 
 @app.route('/admin/entrenar', methods=['POST'])

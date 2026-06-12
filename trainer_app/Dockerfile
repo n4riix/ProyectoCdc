@@ -12,6 +12,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+RUN groupadd --system appuser && useradd --system --gid appuser appuser && chown -R appuser:appuser /app
+USER appuser
 
 # Encendemos el Guardián
 CMD ["python", "-u", "daemon_entrenador.py"]

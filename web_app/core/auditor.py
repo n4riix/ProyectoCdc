@@ -14,6 +14,8 @@ def procesar_lote_kofax():
     
     logging.info(f"🕵️‍♂️ [RADAR] Buscando índices en: {lote_dir}")
     
+    archivos_indice = glob.glob(os.path.join(lote_dir, 'Indice_*.txt'))
+    
     if not archivos_indice:
         return {"error": "No se encontró ningún archivo 'Indice_*.txt' en la carpeta 'lote_kofax'."}
 

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Conocimiento del Modelo IA - CDC</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo_banco.css') }}">
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo-container">
+            <img class="brand-logo" src="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-light="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-dark="{{ url_for('static', filename='img/logo_blanco.png') }}" 
+                 alt="Intexus Logo">
+            <span class="brand-title">Auditor Inteligente CDC</span>
+        </div>
+        
+        <div class="nav-controls">
+            <button class="theme-toggle">🌗</button>
+            <span>👤 {{ usuario }} ({{ rol }})</span>
+            {% if rol == 'admin' %}
+                <a href="/admin">⚙️ Entrenar IA</a>
+            {% endif %}
+            <a href="/dashboard">⬅️ Volver</a>
+            <a href="/logout">🚪 Cerrar Sesión</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card" style="border-left: 5px solid #28a745;">
+            <h2 style="margin-top:0">🧩 Conocimiento del Modelo IA</h2>
+            <p style="color:var(--text-main); font-size: 0.95rem;">Explora los modelos de clasificación entrenados actualmente en el sistema. Puedes desplegar cada matriz y subproceso para ver la lista exacta de clases que el modelo ya aprendió a reconocer.</p>
+            
+            <div style="margin-top: 16px;">
+                {% if modelos_conocidos %}
+                    {% for matriz, subprocesos in modelos_conocidos.items() %}
+                        <details style="margin-bottom: 10px; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; padding: 10px;">
+                            <summary style="font-weight: bold; cursor: pointer; color: var(--text-heading); font-size: 1.1rem;">Matriz: {{ matriz }}</summary>
+                            <div style="margin-top: 10px; padding-left: 15px;">
+                                {% for subproceso, info in subprocesos.items() %}
+                                    <details style="margin-bottom: 8px; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px;">
+                                        <summary style="font-weight: 500; cursor: pointer; color: var(--text-main); font-size: 1.05rem;">Subproceso: {{ subproceso }} <span style="font-size: 0.9rem; opacity: 0.8; margin-left: 5px;">({{ info.clases | length }} clases)</span></summary>
+                                        <div style="margin-top: 8px; padding-left: 15px; display: flex; flex-wrap: wrap; gap: 5px;">
+                                            {% for c in info.clases %}
+                                                <span class="chip">{{ c }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </details>
+                                {% endfor %}
+                            </div>
+                        </details>
+                    {% endfor %}
+                {% else %}
+                    <p>No hay modelos entrenados disponibles en este momento.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

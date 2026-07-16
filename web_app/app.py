@@ -93,6 +93,17 @@ def login():
 def dashboard():
     return render_template('dashboard.html', usuario=session['usuario'], rol=session['rol'])
 
+@app.route('/conocimiento')
+@login_requerido
+def conocimiento():
+    modelos_conocidos = obtener_modelos_conocidos()
+    return render_template(
+        'conocimiento.html',
+        usuario=session['usuario'],
+        rol=session['rol'],
+        modelos_conocidos=modelos_conocidos
+    )
+
 @app.route('/api/auditar_lote', methods=['POST'])
 @login_requerido
 def api_auditar_lote():

@@ -20,7 +20,7 @@
             <span>👤 {{ usuario }} ({{ rol }})</span>
             
             <a href="/dashboard">⬅️ Volver</a>
-            
+            <a href="/conocimiento">🧩 Conocimiento IA</a>
             <a href="/logout">🚪 Cerrar Sesión</a>
         </div>
     </div>
@@ -36,71 +36,39 @@
 
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2 style="margin:0">Inventario y Modelos IA</h2>
+                <h2 style="margin:0">📦 Inventario de Documentos</h2>
                 <div style="font-size:0.95rem; color:var(--text-main);">Resumen rápido · <strong>{{ inventario | length if inventario else 0 }}</strong> matrices</div>
             </div>
 
-            <div class="tabs" style="margin-top:18px;">
-                <button class="tab active" data-target="tab-inventario">📦 Inventario</button>
-                <button class="tab" data-target="tab-modelos">🧩 Modelos</button>
-            </div>
-
-            <div class="tab-content" style="margin-top:16px;">
-                <div id="tab-inventario" class="tab-pane active">
-                    {% if inventario %}
-                        <table class="compact-table">
-                            <thead>
-                                <tr><th>Matriz</th><th>Subproceso</th><th>Clases</th></tr>
-                            </thead>
-                            <tbody>
-                            {% for matriz, subprocesos in inventario.items() %}
-                                {% for subproceso, clases in subprocesos.items() %}
-                                    <tr>
-                                        <td>{{ matriz }}</td>
-                                        <td>{{ subproceso }}</td>
-                                        <td>
-                                            {% for c in clases %}
-                                                <span class="chip">{{ c }}</span>
-                                            {% endfor %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
+            <div style="margin-top:16px;">
+                {% if inventario %}
+                    <table class="compact-table">
+                        <thead>
+                            <tr><th>Matriz</th><th>Subproceso</th><th>Clases</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for matriz, subprocesos in inventario.items() %}
+                            {% for subproceso, clases in subprocesos.items() %}
+                                <tr>
+                                    <td>{{ matriz }}</td>
+                                    <td>{{ subproceso }}</td>
+                                    <td>
+                                        {% for c in clases %}
+                                            <span class="chip">{{ c }}</span>
+                                        {% endfor %}
+                                    </td>
+                                </tr>
                             {% endfor %}
-                            </tbody>
-                        </table>
-                    {% else %}
-                        <p>No se encontraron tipos documentales cargados.</p>
-                    {% endif %}
-                </div>
-
-                <div id="tab-modelos" class="tab-pane">
-                    {% if modelos_conocidos %}
-                        <table class="compact-table">
-                            <thead>
-                                <tr><th>Matriz</th><th>Subproceso</th><th>Clases (IA)</th></tr>
-                            </thead>
-                            <tbody>
-                            {% for matriz, subprocesos in modelos_conocidos.items() %}
-                                {% for subproceso, info in subprocesos.items() %}
-                                    <tr>
-                                        <td>{{ matriz }}</td>
-                                        <td>{{ subproceso }}</td>
-                                        <td>
-                                            {% for c in info.clases %}
-                                                <span class="chip">{{ c }}</span>
-                                            {% endfor %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    {% else %}
-                        <p>No hay modelos entrenados disponibles.</p>
-                    {% endif %}
-                </div>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p>No se encontraron tipos documentales cargados.</p>
+                {% endif %}
             </div>
         </div>
+
+
 
         <div class="card">
             <h2>📂 Entrenamiento de la IA</h2>
@@ -239,10 +207,10 @@
                         .then(estadoData => {
                             if(estadoData.estado === 'procesando') {
                                 if(progresoFalso < 99) {
-                                    progresoFalso += 7;
-                                    if(progresoFalso > 99) progresoFalso = 99; 
+                                    // Cálculo asintótico: sube lentamente acercándose a 99%
+                                    progresoFalso += (99 - progresoFalso) * 0.05;
                                 }
-                                actualizarUIProgreso(progresoFalso);
+                                actualizarUIProgreso(Math.floor(progresoFalso));
                             } else {
                                 clearInterval(intervalo);
                                 actualizarUIProgreso(100, '#5cb85c');
@@ -250,7 +218,7 @@
                                 titulo.style.color = '#5cb85c';
                                 texto.innerText = 'Tipos documentales aprendidos con éxito.';
                                 btnCerrar.style.display = 'block';
-                                setTimeout(() => { window.location.reload(); }, 1200);
+                                // Quitamos el setTimeout para que el modal no se cierre automáticamente
                             }
                         })
                         .catch(err => {
@@ -274,6 +242,7 @@
 
             btnCerrar.addEventListener('click', () => {
                 modal.style.display = 'none';
+                window.location.reload();
             });
         });
     </script>

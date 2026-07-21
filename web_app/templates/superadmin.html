@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Superadministrador - CDC</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo_banco.css') }}">
+    <style>
+        .btn-danger {
+            background: linear-gradient(135deg, #d9534f, #c9302c);
+            color: #fff;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #c9302c, #a12622);
+            transform: scale(1.03);
+            box-shadow: 0 4px 15px rgba(217, 83, 79, 0.4);
+        }
+        .btn-danger-total {
+            background: linear-gradient(135deg, #a12622, #7a1a17);
+            color: #fff;
+            border: 2px solid #d9534f;
+            padding: 14px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1rem;
+            width: 100%;
+            transition: all 0.3s;
+        }
+        .btn-danger-total:hover {
+            background: linear-gradient(135deg, #c9302c, #a12622);
+            box-shadow: 0 6px 25px rgba(217, 83, 79, 0.5);
+            transform: scale(1.02);
+        }
+        .proceso-card {
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            padding: 14px 18px;
+            margin-bottom: 10px;
+        }
+        .proceso-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .proceso-titulo {
+            font-weight: bold;
+            color: var(--text-heading);
+            font-size: 1.05rem;
+        }
+        .clase-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0,0,0,0.15);
+            border: 1px solid var(--input-border);
+            border-radius: 20px;
+            padding: 5px 12px;
+            margin: 3px;
+            font-size: 0.9rem;
+            color: var(--text-main);
+        }
+        .clase-item .btn-x {
+            background: #d9534f;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .clase-item .btn-x:hover {
+            background: #a12622;
+            transform: scale(1.15);
+        }
+        .seccion-tipo-persona {
+            margin-bottom: 25px;
+        }
+        .seccion-tipo-persona h3 {
+            color: var(--text-heading);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border-accent);
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="logo-container">
+            <img class="brand-logo" src="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-light="{{ url_for('static', filename='img/logo.png') }}" 
+                 data-dark="{{ url_for('static', filename='img/logo_blanco.png') }}" 
+                 alt="Intexus Logo">
+            <span class="brand-title">Auditor Inteligente CDC</span>
+        </div>
+        
+        <div class="nav-controls">
+            <button class="theme-toggle">🌗</button>
+            <span>👤 {{ usuario }} ({{ rol }})</span>
+            <a href="/admin">⚙️ Entrenar IA</a>
+            <a href="/conocimiento">🧩 Conocimiento IA</a>
+            <a href="/dashboard">⬅️ Volver</a>
+            <a href="/logout">🚪 Cerrar Sesión</a>
+        </div>
+    </div>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <div class="card" style="border-top: 4px solid #d9534f;">
+            <h2 style="margin-top:0; color: #d9534f;">🛡️ Panel de Superadministrador</h2>
+            <p style="color: var(--text-main); font-size: 0.95rem;">
+                Desde aquí puedes gestionar los conocimientos de la IA. Puedes eliminar cerebros completos o clases individuales.
+                <strong style="color: #d9534f;">⚠️ Estas acciones son irreversibles.</strong>
+            </p>
+        </div>
+
+        <!-- CONOCIMIENTO ACTUAL -->
+        {% if modelos_conocidos %}
+            {% for matriz, procesos in modelos_conocidos.items() %}
+                <div class="seccion-tipo-persona">
+                    <div class="card">
+                        <h3>🧠 Tipo de Persona: {% if matriz == 'BT' %}Natural{% elif matriz == 'BR' %}Jurídico{% else %}{{ matriz }}{% endif %}</h3>
+                        
+                        {% for proceso, info in procesos.items() %}
+                            <div class="proceso-card">
+                                <div class="proceso-header">
+                                    <span class="proceso-titulo">📁 Proceso: {{ proceso }} <span style="font-size: 0.85rem; opacity: 0.7;">({{ info.clases | length }} clases)</span></span>
+                                    <form method="POST" action="/superadmin/borrar_proceso" style="display:inline;" onsubmit="return confirm('⚠️ ¿Estás seguro de ELIMINAR el proceso {{ proceso }} completo?\n\nSe borrarán el cerebro entrenado y TODOS los documentos de este proceso.\n\nEsta acción es IRREVERSIBLE.');">
+                                        <input type="hidden" name="matriz" value="{{ matriz }}">
+                                        <input type="hidden" name="proceso" value="{{ proceso }}">
+                                        <button type="submit" class="btn-danger">🗑️ Borrar Proceso</button>
+                                    </form>
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                    {% for clase in info.clases %}
+                                        <span class="clase-item">
+                                            {{ clase }}
+                                            <form method="POST" action="/superadmin/borrar_clase" style="display:inline;" onsubmit="return confirm('¿Eliminar la clase \'{{ clase }}\' del proceso {{ proceso }}?');">
+                                                <input type="hidden" name="matriz" value="{{ matriz }}">
+                                                <input type="hidden" name="proceso" value="{{ proceso }}">
+                                                <input type="hidden" name="clase" value="{{ clase }}">
+                                                <button type="submit" class="btn-x" title="Eliminar clase {{ clase }}">✕</button>
+                                            </form>
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="card">
+                <p style="text-align: center; color: var(--text-main); font-size: 1.1rem;">📭 No hay conocimientos registrados en el sistema.</p>
+            </div>
+        {% endif %}
+
+        <!-- GESTIÓN DE USUARIOS -->
+        <div class="card" style="margin-top: 30px; border-top: 4px solid var(--border-accent);">
+            <h2 style="margin-top: 0; color: var(--text-heading);">👥 Gestión de Usuarios</h2>
+            <p style="color: var(--text-main); font-size: 0.95rem;">Crea nuevos usuarios o elimina cuentas existentes del sistema.</p>
+            
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
+                <!-- Formulario de creación -->
+                <div style="flex: 1; min-width: 300px; background: rgba(0,0,0,0.05); padding: 15px; border-radius: 8px; border: 1px solid var(--input-border);">
+                    <h3 style="margin-top: 0; color: var(--text-heading);">Crear Nuevo Usuario</h3>
+                    <form method="POST" action="/superadmin/crear_usuario">
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label>Nombre de Usuario:</label>
+                            <input type="text" name="nuevo_username" class="form-control" placeholder="Ej: jlopez" required style="width: 100%;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 12px;">
+                            <label>Contraseña:</label>
+                            <input type="password" name="nuevo_password" class="form-control" placeholder="Contraseña segura" required style="width: 100%;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label>Rol del Usuario:</label>
+                            <select name="nuevo_rol" class="form-control" required style="width: 100%;">
+                                <option value="analista" selected>Analista (Solo lectura / Auditoría)</option>
+                                <option value="admin">Administrador (Puede subir y entrenar IA)</option>
+                                <option value="superadmin">Superadministrador (Acceso total y gestión)</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success" style="width: 100%;">Crear Cuenta</button>
+                    </form>
+                </div>
+
+                <!-- Tabla de usuarios existentes -->
+                <div style="flex: 1.5; min-width: 350px;">
+                    <h3 style="margin-top: 0; color: var(--text-heading);">Usuarios Registrados</h3>
+                    <table class="compact-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Rol</th>
+                                <th style="text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for u in usuarios %}
+                                <tr>
+                                    <td><strong>{{ u.username }}</strong></td>
+                                    <td>
+                                        {% if u.rol == 'superadmin' %}
+                                            <span class="chip" style="background-color: #d9534f; color: white;">Super Admin</span>
+                                        {% elif u.rol == 'admin' %}
+                                            <span class="chip" style="background-color: var(--color-action-purple); color: white;">Admin</span>
+                                        {% else %}
+                                            <span class="chip" style="background-color: var(--input-border);">Analista</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="text-align: right;">
+                                        {% if u.username == usuario %}
+                                            <span style="font-size: 0.9rem; opacity: 0.6; font-style: italic;">Sesión activa</span>
+                                        {% else %}
+                                            <form method="POST" action="/superadmin/eliminar_usuario" style="display:inline;" onsubmit="return confirm('¿Seguro que deseas eliminar el usuario \'{{ u.username }}\'?');">
+                                                <input type="hidden" name="user_id" value="{{ u.id }}">
+                                                <button type="submit" class="btn-danger" style="padding: 4px 10px; font-size: 0.8rem;">Eliminar</button>
+                                            </form>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- BORRADO TOTAL -->
+        <div class="card" style="border: 2px solid #d9534f; margin-top: 30px;">
+            <h2 style="color: #d9534f; margin-top: 0;">☢️ Zona de Peligro</h2>
+            <p style="color: var(--text-main);">Esta acción eliminará <strong>TODOS</strong> los cerebros entrenados y <strong>TODOS</strong> los documentos de entrenamiento del sistema. La IA volverá al estado inicial sin ningún conocimiento.</p>
+            <form method="POST" action="/superadmin/borrar_todo" onsubmit="return confirm('☢️ ATENCIÓN MÁXIMA ☢️\n\n¿Realmente deseas BORRAR TODO el conocimiento de la IA?\n\nEsto eliminará:\n• Todos los cerebros entrenados\n• Todos los documentos de entrenamiento\n• Todo el historial de aprendizaje\n\nEsta acción es COMPLETAMENTE IRREVERSIBLE.\n\nEscribe CONFIRMAR si realmente deseas continuar.') && prompt('Escribe CONFIRMAR para proceder:') === 'CONFIRMAR';">
+                <button type="submit" class="btn-danger-total">☢️ RESTABLECER TODO A CERO — Borrar Todos los Conocimientos</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+</body>
+</html>

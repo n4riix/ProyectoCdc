@@ -18,7 +18,10 @@
         <div class="nav-controls">
             <button class="theme-toggle">🌗</button>
             <span>👤 {{ usuario }} ({{ rol }})</span>
-            {% if rol == 'admin' %}
+            {% if rol == 'superadmin' %}
+                <a href="/superadmin" style="color: #d9534f;">🛡️ Super Admin</a>
+                <a href="/admin">⚙️ Entrenar IA</a>
+            {% elif rol == 'admin' %}
                 <a href="/admin">⚙️ Entrenar IA</a>
             {% endif %}
             <a href="/dashboard">⬅️ Volver</a>
@@ -35,7 +38,7 @@
                 {% if modelos_conocidos %}
                     {% for matriz, subprocesos in modelos_conocidos.items() %}
                         <details style="margin-bottom: 10px; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; padding: 10px;">
-                            <summary style="font-weight: bold; cursor: pointer; color: var(--text-heading); font-size: 1.1rem;">Tipo de Persona: {% if matriz == 'BT' %}Natural{% elif matriz == 'BR' %}Jurídico{% else %}{{ matriz }}{% endif %}</summary>
+                            <summary style="font-weight: bold; cursor: pointer; color: var(--text-heading); font-size: 1.1rem;">Persona {% if matriz == 'BT' %}Natural{% elif matriz == 'BR' %}Jurídico{% else %}{{ matriz }}{% endif %}</summary>
                             <div style="margin-top: 10px; padding-left: 15px;">
                                 {% for subproceso, info in subprocesos.items() %}
                                     <details style="margin-bottom: 8px; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px;">

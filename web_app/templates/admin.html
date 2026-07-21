@@ -19,6 +19,9 @@
             <button class="theme-toggle">🌗</button>
             <span>👤 {{ usuario }} ({{ rol }})</span>
             
+            {% if rol == 'superadmin' %}
+                <a href="/superadmin" style="color: #d9534f;">🛡️ Super Admin</a>
+            {% endif %}
             <a href="/dashboard">⬅️ Volver</a>
             <a href="/conocimiento">🧩 Conocimiento IA</a>
             <a href="/logout">🚪 Cerrar Sesión</a>

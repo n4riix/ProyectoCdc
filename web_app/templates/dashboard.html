@@ -18,7 +18,10 @@
         <div class="nav-controls">
             <button class="theme-toggle">🌗</button>
             <span>👤 {{ usuario }} ({{ rol }})</span>
-            {% if rol == 'admin' %}
+            {% if rol == 'superadmin' %}
+                <a href="/superadmin" style="color: #d9534f;">🛡️ Super Admin</a>
+                <a href="/admin">⚙️ Entrenar IA</a>
+            {% elif rol == 'admin' %}
                 <a href="/admin">⚙️ Entrenar IA</a>
             {% endif %}
             <a href="/conocimiento">🧩 Conocimiento IA</a>

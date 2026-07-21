@@ -77,3 +77,64 @@ def obtener_modelos_conocidos():
                 }
 
     return modelos
+
+
+def borrar_todo_el_conocimiento():
+    """Elimina TODOS los cerebros entrenados y TODOS los datasets (activos y procesados)."""
+    import shutil
+    errores = []
+    for carpeta in [CEREBROS_DIR, DATASET_DIR]:
+        if os.path.isdir(carpeta):
+            for item in os.listdir(carpeta):
+                ruta = os.path.join(carpeta, item)
+                try:
+                    if os.path.isdir(ruta):
+                        shutil.rmtree(ruta)
+                    else:
+                        os.remove(ruta)
+                except Exception as e:
+                    errores.append(f"{ruta}: {e}")
+    return errores
+
+
+def borrar_conocimiento_proceso(matriz, proceso):
+    """Elimina el cerebro y los datos de entrenamiento de un proceso específico."""
+    import shutil
+    errores = []
+    rutas_a_borrar = [
+        os.path.join(CEREBROS_DIR, matriz, proceso),
+        os.path.join(DATASET_DIR, matriz, proceso),
+        os.path.join(DATASET_DIR, 'processed', matriz, proceso),
+    ]
+    for ruta in rutas_a_borrar:
+        if os.path.isdir(ruta):
+            try:
+                shutil.rmtree(ruta)
+            except Exception as e:
+                errores.append(f"{ruta}: {e}")
+    return errores
+
+
+def borrar_conocimiento_clase(matriz, proceso, clase):
+    """Elimina una clase específica del dataset y marca el cerebro para re-entrenamiento."""
+    import shutil
+    errores = []
+    rutas_a_borrar = [
+        os.path.join(DATASET_DIR, matriz, proceso, clase),
+        os.path.join(DATASET_DIR, 'processed', matriz, proceso, clase),
+    ]
+    for ruta in rutas_a_borrar:
+        if os.path.isdir(ruta):
+            try:
+                shutil.rmtree(ruta)
+            except Exception as e:
+                errores.append(f"{ruta}: {e}")
+
+    # Eliminar el cerebro del proceso para forzar re-entrenamiento sin esa clase
+    ruta_cerebro = os.path.join(CEREBROS_DIR, matriz, proceso)
+    if os.path.isdir(ruta_cerebro):
+        try:
+            shutil.rmtree(ruta_cerebro)
+        except Exception as e:
+            errores.append(f"{ruta_cerebro}: {e}")
+    return errores

@@ -22,14 +22,32 @@ def inicializar_base_datos():
     cursor = conn.cursor()
 
     # --- TABLA 1: SEGURIDAD Y ROLES ---
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            rol TEXT NOT NULL CHECK(rol IN ('admin', 'analista'))
-        )
-    ''')
+    # Migración: verificar si la tabla existente tiene el constraint antiguo sin 'superadmin'
+    cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios'")
+    tabla_existente = cursor.fetchone()
+    if tabla_existente and 'superadmin' not in tabla_existente[0]:
+        # Migrar: recrear tabla con el nuevo constraint
+        cursor.execute('ALTER TABLE usuarios RENAME TO usuarios_old')
+        cursor.execute('''
+            CREATE TABLE usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                rol TEXT NOT NULL CHECK(rol IN ('superadmin', 'admin', 'analista'))
+            )
+        ''')
+        cursor.execute('INSERT INTO usuarios SELECT * FROM usuarios_old')
+        cursor.execute('DROP TABLE usuarios_old')
+        print("\u2705 Migración completada: rol 'superadmin' habilitado.")
+    else:
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                rol TEXT NOT NULL CHECK(rol IN ('superadmin', 'admin', 'analista'))
+            )
+        ''')
 
     # --- TABLA 2: TRAZABILIDAD Y AUDITORÍA ---
     cursor.execute('''
@@ -66,7 +84,17 @@ def inicializar_base_datos():
             "INSERT INTO usuarios (username, password_hash, rol) VALUES (?, ?, ?)", 
             ('admin', pass_hash, 'admin')
         )
-        print("✅ Base de datos inicializada. Creado usuario: 'admin' / Clave: 'admin123'")
+        print("\u2705 Base de datos inicializada. Creado usuario: 'admin' / Clave: 'admin123'")
+
+    # --- INYECCIÓN DEL SUPERADMINISTRADOR ---
+    cursor.execute("SELECT COUNT(*) FROM usuarios WHERE username = 'ecastro'")
+    if cursor.fetchone()[0] == 0:
+        pass_hash_super = generate_password_hash('3346041')
+        cursor.execute(
+            "INSERT INTO usuarios (username, password_hash, rol) VALUES (?, ?, ?)",
+            ('ecastro', pass_hash_super, 'superadmin')
+        )
+        print("\u2705 Superadministrador creado: 'ecastro'")
 
     conn.commit()
     conn.close()
@@ -119,3 +147,57 @@ def get_estado(clave, valor_por_defecto=None):
     if resultado:
         return resultado['valor']
     return valor_por_defecto
+
+
+def listar_usuarios():
+    """Retorna la lista de todos los usuarios registrados (sin contraseñas)."""
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, rol FROM usuarios ORDER BY id")
+    usuarios = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return usuarios
+
+
+def crear_usuario(username, password, rol):
+    """Crea un nuevo usuario. Retorna (True, mensaje) o (False, error)."""
+    if rol not in ('superadmin', 'admin', 'analista'):
+        return False, "Rol inválido."
+    if not username or not password:
+        return False, "Usuario y contraseña son obligatorios."
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    try:
+        pass_hash = generate_password_hash(password)
+        cursor.execute(
+            "INSERT INTO usuarios (username, password_hash, rol) VALUES (?, ?, ?)",
+            (username.strip(), pass_hash, rol)
+        )
+        conn.commit()
+        return True, f"Usuario '{username}' creado con rol '{rol}'."
+    except sqlite3.IntegrityError:
+        return False, f"El usuario '{username}' ya existe."
+    except Exception as e:
+        return False, f"Error: {e}"
+    finally:
+        conn.close()
+
+
+def eliminar_usuario(user_id, usuario_actual):
+    """Elimina un usuario por ID. No permite auto-eliminación."""
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT username FROM usuarios WHERE id = ?", (user_id,))
+        usuario = cursor.fetchone()
+        if not usuario:
+            return False, "Usuario no encontrado."
+        if usuario['username'] == usuario_actual:
+            return False, "No puedes eliminar tu propia cuenta."
+        cursor.execute("DELETE FROM usuarios WHERE id = ?", (user_id,))
+        conn.commit()
+        return True, f"Usuario '{usuario['username']}' eliminado."
+    except Exception as e:
+        return False, f"Error: {e}"
+    finally:
+        conn.close()

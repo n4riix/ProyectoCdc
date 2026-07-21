@@ -8,8 +8,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.utils import secure_filename
 
 # --- IMPORTACIONES DE TU NÚCLEO (CORE) ---
-from core.db_models import inicializar_base_datos, verificar_usuario, set_estado, get_estado
-from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida
+from core.db_models import inicializar_base_datos, verificar_usuario, set_estado, get_estado, listar_usuarios, crear_usuario, eliminar_usuario
+from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida, borrar_todo_el_conocimiento, borrar_conocimiento_proceso, borrar_conocimiento_clase
 from core.auditor import procesar_lote_kofax
 
 # ==========================================
@@ -117,7 +117,7 @@ def api_auditar_lote():
 @app.route('/admin')
 @login_requerido
 def admin():
-    if session['rol'] != 'admin':
+    if session['rol'] not in ('admin', 'superadmin'):
         flash("Acceso denegado. Módulo exclusivo para Administradores.", "danger")
         return redirect(url_for('dashboard'))
 
@@ -135,7 +135,7 @@ def admin():
 @app.route('/admin/subir_documentos', methods=['POST'])
 @login_requerido
 def subir_documentos():
-    if session['rol'] != 'admin':
+    if session['rol'] not in ('admin', 'superadmin'):
         return redirect(url_for('dashboard'))
 
     matriz = secure_filename(request.form.get('matriz', '').strip())
@@ -186,7 +186,7 @@ def subir_documentos():
 @app.route('/admin/entrenar', methods=['POST'])
 @login_requerido
 def entrenar_modelos():
-    if session['rol'] != 'admin':
+    if session['rol'] not in ('admin', 'superadmin'):
         return jsonify({"error": "No autorizado"}), 403
     
     set_estado('progreso_entrenamiento', '0')
@@ -215,6 +215,115 @@ def refresh_inventario():
         'inventario': inventario,
         'modelos': modelos
     })
+
+# ==========================================
+# 6. RUTAS DE SUPERADMINISTRADOR
+# ==========================================
+@app.route('/superadmin')
+@login_requerido
+def superadmin():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado. Módulo exclusivo para Superadministradores.", "danger")
+        return redirect(url_for('dashboard'))
+    modelos_conocidos = obtener_modelos_conocidos()
+    usuarios = listar_usuarios()
+    return render_template(
+        'superadmin.html',
+        usuario=session['usuario'],
+        rol=session['rol'],
+        modelos_conocidos=modelos_conocidos,
+        usuarios=usuarios
+    )
+
+@app.route('/superadmin/borrar_todo', methods=['POST'])
+@login_requerido
+def borrar_todo():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+    errores = borrar_todo_el_conocimiento()
+    if errores:
+        flash(f"⚠️ Borrado completado con advertencias: {'; '.join(errores)}", "warning")
+    else:
+        flash("✅ Todos los conocimientos de la IA han sido eliminados exitosamente.", "success")
+    logging.info(f"[SUPERADMIN] {session['usuario']} ejecutó BORRADO TOTAL de conocimientos.")
+    return redirect(url_for('superadmin'))
+
+@app.route('/superadmin/borrar_proceso', methods=['POST'])
+@login_requerido
+def borrar_proceso():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+    matriz = secure_filename(request.form.get('matriz', '').strip())
+    proceso = secure_filename(request.form.get('proceso', '').strip())
+    if not matriz or not proceso:
+        flash("Parámetros inválidos.", "danger")
+        return redirect(url_for('superadmin'))
+    errores = borrar_conocimiento_proceso(matriz, proceso)
+    nombre_matriz = 'Natural' if matriz == 'BT' else ('Jurídico' if matriz == 'BR' else matriz)
+    if errores:
+        flash(f"⚠️ Proceso {proceso} ({nombre_matriz}) borrado con advertencias: {'; '.join(errores)}", "warning")
+    else:
+        flash(f"✅ Proceso {proceso} ({nombre_matriz}) eliminado exitosamente.", "success")
+    logging.info(f"[SUPERADMIN] {session['usuario']} borró proceso {matriz}/{proceso}.")
+    return redirect(url_for('superadmin'))
+
+@app.route('/superadmin/borrar_clase', methods=['POST'])
+@login_requerido
+def borrar_clase():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+    matriz = secure_filename(request.form.get('matriz', '').strip())
+    proceso = secure_filename(request.form.get('proceso', '').strip())
+    clase = secure_filename(request.form.get('clase', '').strip())
+    if not matriz or not proceso or not clase:
+        flash("Parámetros inválidos.", "danger")
+        return redirect(url_for('superadmin'))
+    errores = borrar_conocimiento_clase(matriz, proceso, clase)
+    nombre_matriz = 'Natural' if matriz == 'BT' else ('Jurídico' if matriz == 'BR' else matriz)
+    if errores:
+        flash(f"⚠️ Clase '{clase}' del proceso {proceso} ({nombre_matriz}) borrada con advertencias: {'; '.join(errores)}", "warning")
+    else:
+        flash(f"✅ Clase '{clase}' del proceso {proceso} ({nombre_matriz}) eliminada. Recuerda re-entrenar la IA.", "success")
+    logging.info(f"[SUPERADMIN] {session['usuario']} borró clase {clase} de {matriz}/{proceso}.")
+    return redirect(url_for('superadmin'))
+
+@app.route('/superadmin/crear_usuario', methods=['POST'])
+@login_requerido
+def crear_usuario_route():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+    username = request.form.get('nuevo_username', '').strip()
+    password = request.form.get('nuevo_password', '').strip()
+    rol = request.form.get('nuevo_rol', '').strip()
+    exito, mensaje = crear_usuario(username, password, rol)
+    if exito:
+        flash(f"✅ {mensaje}", "success")
+        logging.info(f"[SUPERADMIN] {session['usuario']} creó usuario '{username}' con rol '{rol}'.")
+    else:
+        flash(f"❌ {mensaje}", "danger")
+    return redirect(url_for('superadmin'))
+
+@app.route('/superadmin/eliminar_usuario', methods=['POST'])
+@login_requerido
+def eliminar_usuario_route():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+    user_id = request.form.get('user_id', '').strip()
+    if not user_id:
+        flash("ID de usuario inválido.", "danger")
+        return redirect(url_for('superadmin'))
+    exito, mensaje = eliminar_usuario(int(user_id), session['usuario'])
+    if exito:
+        flash(f"✅ {mensaje}", "success")
+        logging.info(f"[SUPERADMIN] {session['usuario']} eliminó usuario ID {user_id}.")
+    else:
+        flash(f"❌ {mensaje}", "danger")
+    return redirect(url_for('superadmin'))
 
 @app.route('/logout')
 def logout():

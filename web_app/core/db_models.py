@@ -47,6 +47,15 @@ def inicializar_base_datos():
         )
     ''')
 
+    # --- TABLA 3: ESTADO DEL SISTEMA ---
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS estado_sistema (
+            clave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
+        )
+    ''')
+    cursor.execute("INSERT OR IGNORE INTO estado_sistema (clave, valor) VALUES ('entrenamiento', 'LISTO')")
+
     # --- INYECCIÓN DEL USUARIO MAESTRO ---
     # Verifica si la tabla de usuarios está vacía. Si es así, crea el primer Admin.
     cursor.execute("SELECT COUNT(*) FROM usuarios")
@@ -91,3 +100,22 @@ def registrar_auditoria_documento(archivo, matriz, subproceso, kofax, ia, veredi
         print(f"Error al guardar en BD: {e}")
     finally:
         conn.close()
+
+def set_estado(clave, valor):
+    """Establece un estado global en el sistema."""
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO estado_sistema (clave, valor) VALUES (?, ?)", (clave, valor))
+    conn.commit()
+    conn.close()
+
+def get_estado(clave, valor_por_defecto=None):
+    """Obtiene un estado global del sistema."""
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    cursor.execute("SELECT valor FROM estado_sistema WHERE clave = ?", (clave,))
+    resultado = cursor.fetchone()
+    conn.close()
+    if resultado:
+        return resultado['valor']
+    return valor_por_defecto

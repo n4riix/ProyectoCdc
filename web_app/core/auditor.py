@@ -2,7 +2,7 @@ import os
 import glob
 import csv
 import logging
-from .ocr_engine import MotorOCR
+from .ocr_engine import obtener_motor_ocr
 from .routing_ia import predecir_documento
 
 
@@ -24,7 +24,7 @@ def procesar_lote_kofax():
     resultados = []
 
     # Encendemos el OCR en la memoria RAM
-    motor_ocr = MotorOCR() 
+    motor_ocr = obtener_motor_ocr() 
 
     # Usar csv.reader para manejar correctamente comillas y separadores
     with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:

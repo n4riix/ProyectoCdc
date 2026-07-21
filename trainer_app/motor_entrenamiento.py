@@ -103,13 +103,28 @@ def obtener_texto_con_cache(ocr_instancia, ruta_archivo_imagen):
         print(f"❌ Error al ejecutar OCR en {ruta_archivo_imagen}: {e}")
         return ""
 
-def entrenar_plataforma_completa():
+def entrenar_plataforma_completa(callback_progreso=None):
     print("🚀 [Maestro IA] Iniciando rutina de aprendizaje optimizada (Text Caching)...")
+    if callback_progreso: callback_progreso(5)
     
     # Inicializamos PaddleOCR (utilizará los modelos offline guardados en la bóveda)
     ocr = PaddleOCR(use_angle_cls=False, lang='es', use_gpu=False, enable_mkldnn=True, cpu_threads=4)
+    if callback_progreso: callback_progreso(10)
 
     matrices = ["BT", "BR"]
+    
+    # Conteo rápido total de clases a procesar
+    total_clases = 0
+    for matriz in matrices:
+        ruta_matriz = os.path.join(DATASET_DIR, matriz)
+        if os.path.exists(ruta_matriz):
+            for subproceso in os.listdir(ruta_matriz):
+                ruta_sub = os.path.join(ruta_matriz, subproceso)
+                if os.path.isdir(ruta_sub):
+                    total_clases += len([n for n in os.listdir(ruta_sub) if os.path.isdir(os.path.join(ruta_sub, n))])
+    
+    clases_procesadas = 0
+
     for matriz in matrices:
         ruta_matriz = os.path.join(DATASET_DIR, matriz)
         if not os.path.exists(ruta_matriz):
@@ -155,6 +170,11 @@ def entrenar_plataforma_completa():
                         if txt:
                             textos.append(txt)
                             etiquetas.append(clase)
+                            
+                clases_procesadas += 1
+                if callback_progreso and total_clases > 0:
+                    prog = 10 + int((clases_procesadas / total_clases) * 80)
+                    callback_progreso(min(prog, 95))
 
             if hay_datos_nuevos:
                 clases_unicas = sorted(set(etiquetas))

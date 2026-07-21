@@ -8,7 +8,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.utils import secure_filename
 
 # --- IMPORTACIONES DE TU NÚCLEO (CORE) ---
-from core.db_models import inicializar_base_datos, verificar_usuario
+from core.db_models import inicializar_base_datos, verificar_usuario, set_estado, get_estado
 from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida
 from core.auditor import procesar_lote_kofax
 
@@ -138,33 +138,45 @@ def subir_documentos():
     if session['rol'] != 'admin':
         return redirect(url_for('dashboard'))
 
-    matriz = request.form.get('matriz')
-    subproceso = request.form.get('subproceso').strip().upper()
-    clase_doc = request.form.get('clase_documento').strip()
+    matriz = secure_filename(request.form.get('matriz', '').strip())
+    subproceso_raw = request.form.get('subproceso', '').strip().upper()
+    clase_doc = request.form.get('clase_documento', '').strip()
     archivos = request.files.getlist('archivos')
 
-    if not matriz or not subproceso or not clase_doc or not archivos:
+    # Separar subprocesos por coma y limpiarlos
+    lista_subprocesos = [secure_filename(sp.strip()) for sp in subproceso_raw.split(',') if sp.strip()]
+
+    if not matriz or not lista_subprocesos or not clase_doc or not archivos:
         flash("Todos los campos son obligatorios", "danger")
         return redirect(url_for('admin'))
 
     clase_doc_segura = secure_filename(clase_doc).replace("_", " ")
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    ruta_destino = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_entrenamiento', matriz, subproceso, clase_doc_segura)
 
-    os.makedirs(ruta_destino, exist_ok=True)
-
-    guardados = 0
+    # Pre-leer archivos válidos en memoria (para poder guardarlos múltiples veces)
+    archivos_validos = []
     invalidos = 0
     for archivo in archivos:
         if archivo.filename:
             filename = secure_filename(archivo.filename)
-            if not extension_permitida(filename):
+            if extension_permitida(filename):
+                archivos_validos.append((filename, archivo.read()))
+            else:
                 invalidos += 1
-                continue
-            archivo.save(os.path.join(ruta_destino, filename))
+
+    guardados = 0
+    for sp in lista_subprocesos:
+        ruta_destino = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_entrenamiento', matriz, sp, clase_doc_segura)
+        os.makedirs(ruta_destino, exist_ok=True)
+        
+        for filename, datos in archivos_validos:
+            ruta_archivo = os.path.join(ruta_destino, filename)
+            with open(ruta_archivo, 'wb') as f:
+                f.write(datos)
             guardados += 1
 
-    mensaje = f"✅ Éxito: Se guardaron {guardados} archivos en la categoría '{clase_doc_segura}'."
+    subprocesos_str = ", ".join(lista_subprocesos)
+    mensaje = f"✅ Éxito: Se guardaron {guardados} archivos en total para los subprocesos [{subprocesos_str}] en la categoría '{clase_doc_segura}'."
     if invalidos:
         mensaje += f" ({invalidos} archivo(s) inválido(s) omitido(s). Use TIF, PDF, JPG o PNG)."
 
@@ -177,25 +189,21 @@ def entrenar_modelos():
     if session['rol'] != 'admin':
         return jsonify({"error": "No autorizado"}), 403
     
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    ruta_flag = os.path.join(base_dir, '..', 'volumen_compartido', 'orden_entrenar.flag')
-    
-    with open(ruta_flag, 'w') as f:
-        f.write("DESPERTAR_IA")
+    set_estado('progreso_entrenamiento', '0')
+    set_estado('entrenamiento', 'PROCESANDO')
 
     return jsonify({"mensaje": "Orden enviada correctamente"})
 
 @app.route('/admin/estado_entrenamiento')
 @login_requerido
 def estado_entrenamiento():
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    ruta_flag = os.path.join(base_dir, '..', 'volumen_compartido', 'orden_entrenar.flag')
-    ruta_lock = os.path.join(base_dir, '..', 'volumen_compartido', 'entrenando.lock')
-    
-    if os.path.exists(ruta_flag) or os.path.exists(ruta_lock):
-        return jsonify({"estado": "procesando"})
-    else:
-        return jsonify({"estado": "listo"})
+    estado = get_estado('entrenamiento', 'listo').lower()
+    progreso = get_estado('progreso_entrenamiento', '0')
+    try:
+        progreso = int(progreso)
+    except:
+        progreso = 0
+    return jsonify({"estado": estado, "progreso": progreso})
 
 @app.route('/admin/refresh_inventario')
 @login_requerido

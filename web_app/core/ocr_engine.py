@@ -33,3 +33,11 @@ class MotorOCR:
         except Exception as e:
             print(f"❌ Error al leer imagen {ruta_imagen}: {e}")
             return ""
+
+_instancia_motor = None
+
+def obtener_motor_ocr():
+    global _instancia_motor
+    if _instancia_motor is None:
+        _instancia_motor = MotorOCR()
+    return _instancia_motor

@@ -44,13 +44,13 @@
                 {% if inventario %}
                     <table class="compact-table">
                         <thead>
-                            <tr><th>Matriz</th><th>Subproceso</th><th>Clases</th></tr>
+                            <tr><th>Tipo de Persona</th><th>Proceso</th><th>Clases</th></tr>
                         </thead>
                         <tbody>
                         {% for matriz, subprocesos in inventario.items() %}
                             {% for subproceso, clases in subprocesos.items() %}
                                 <tr>
-                                    <td>{{ matriz }}</td>
+                                    <td>{% if matriz == 'BT' %}Natural{% elif matriz == 'BR' %}Jurídico{% else %}{{ matriz }}{% endif %}</td>
                                     <td>{{ subproceso }}</td>
                                     <td>
                                         {% for c in clases %}
@@ -78,16 +78,16 @@
                 
                 <div style="display: flex; gap: 20px; margin-bottom: 15px;">
                     <div class="form-group" style="flex: 1;">
-                        <label>1. Matriz (Tipo Persona):</label>
+                        <label>1. Tipo de Persona:</label>
                         <select name="matriz" class="form-control" required>
                             <option value="" disabled selected>Seleccione...</option>
-                            <option value="BT">Natural (BT)</option>
-                            <option value="BR">Jurídica (BR)</option>
+                            <option value="BT">Natural</option>
+                            <option value="BR">Jurídico</option>
                         </select>
                     </div>
 
                     <div class="form-group" style="flex: 1;">
-                        <label>2. Proceso / Subproceso:</label>
+                        <label>2. Proceso:</label>
                         <input type="text" name="subproceso" class="form-control" placeholder="Ej: CCD, ACT, PPC..." required style="text-transform: uppercase;">
                         <small style="color: var(--text-main); opacity: 0.7;">Escribe el código exacto del proceso.</small>
                     </div>
@@ -199,18 +199,19 @@
                     
                     // 2. Preguntar cada 2 segundos al backend cómo va
                     intervalo = setInterval(() => {
-                        fetch('/admin/estado_entrenamiento')
+                        fetch('/admin/estado_entrenamiento?t=' + new Date().getTime())
                         .then(res => {
                             if (!res.ok) throw new Error(`HTTP ${res.status}`);
                             return res.json();
                         })
                         .then(estadoData => {
                             if(estadoData.estado === 'procesando') {
-                                if(progresoFalso < 99) {
-                                    // Cálculo asintótico: sube lentamente acercándose a 99%
-                                    progresoFalso += (99 - progresoFalso) * 0.05;
+                                let progresoReal = estadoData.progreso || 0;
+                                // Asegurarnos de que no retroceda
+                                if(progresoReal > progresoFalso) {
+                                    progresoFalso = progresoReal;
                                 }
-                                actualizarUIProgreso(Math.floor(progresoFalso));
+                                actualizarUIProgreso(progresoFalso);
                             } else {
                                 clearInterval(intervalo);
                                 actualizarUIProgreso(100, '#5cb85c');

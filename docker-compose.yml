@@ -23,8 +23,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'      # Máximo 1 hilo del Ryzen para la web
-          memory: 1G       # Máximo 1 GB de RAM
+          cpus: '${WEB_CPUS:-1.0}'      # Máximo 1 hilo del Ryzen para la web
+          memory: '${WEB_MEM:-1G}'       # Máximo 1 GB de RAM
 
   # ----------------------------------------------------
   # SERVICIO 2: EL ENTRENADOR DE IA (Bajo Demanda)
@@ -45,5 +45,5 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.5'      # BOZAL: Máximo 2.5 hilos (de los 4 que tiene tu Ryzen)
-          memory: 4.5G     # BOZAL: Máximo 4.5 GB de RAM (Tienes 6.7 libres)
+          cpus: '${TRAINER_CPUS:-2.5}'      # BOZAL: Máximo 2.5 hilos (de los 4 que tiene tu Ryzen)
+          memory: '${TRAINER_MEM:-4.5G}'     # BOZAL: Máximo 4.5 GB de RAM (Tienes 6.7 libres)

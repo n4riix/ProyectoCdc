@@ -58,10 +58,9 @@ def inicializar_base_datos():
             subproceso TEXT NOT NULL,          -- Ej: CCD, ACT, CNW
             clasificacion_humana TEXT NOT NULL,
             clasificacion_ia TEXT NOT NULL,
-            veredicto TEXT NOT NULL,           -- 'MATCH PERFECTO', 'ALERTA', 'CORREGIDO'
-            clasificacion_final TEXT,          -- Solo se llena si un humano lo corrige
-            corregido_por TEXT,                -- Firma del analista/admin
-            fecha_procesamiento DATETIME DEFAULT CURRENT_TIMESTAMP
+            nivel_confianza REAL NOT NULL,
+            veredicto TEXT NOT NULL,           -- 'coincide', 'discrepancia', 'duda_ia'
+            fecha_revision TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
 
@@ -73,6 +72,46 @@ def inicializar_base_datos():
         )
     ''')
     cursor.execute("INSERT OR IGNORE INTO estado_sistema (clave, valor) VALUES ('entrenamiento', 'LISTO')")
+
+    # --- TABLA 4: LOTES DE AUDITORÍA (Celery) ---
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS auditorias_lotes (
+            id TEXT PRIMARY KEY,               -- task_id de Celery
+            fecha_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            fecha_fin TIMESTAMP,
+            estado TEXT NOT NULL,              -- 'procesando', 'completado', 'error'
+            total_documentos INTEGER DEFAULT 0,
+            documentos_procesados INTEGER DEFAULT 0,
+            errores INTEGER DEFAULT 0
+        )
+    ''')
+
+    # --- TABLA 5: RESULTADOS DE LOTES ---
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS auditoria_resultados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            auditoria_id TEXT NOT NULL,
+            linea_indice INTEGER,
+            archivo TEXT NOT NULL,
+            matriz TEXT,
+            subproceso TEXT,
+            esperado TEXT,
+            prediccion TEXT,
+            confianza REAL DEFAULT 100.0,
+            estado TEXT,                       -- 'success', 'warning', 'danger'
+            FOREIGN KEY(auditoria_id) REFERENCES auditorias_lotes(id)
+        )
+    ''')
+    
+    # Intento de agregar la columna si la tabla ya existía sin ella
+    try:
+        cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN linea_indice INTEGER")
+    except:
+        pass
+    try:
+        cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN confianza REAL DEFAULT 100.0")
+    except:
+        pass
 
     # --- INYECCIÓN DEL USUARIO MAESTRO ---
     # Verifica si la tabla de usuarios está vacía. Si es así, crea el primer Admin.
@@ -120,8 +159,8 @@ def registrar_auditoria_documento(archivo, matriz, subproceso, kofax, ia, veredi
     try:
         cursor.execute('''
             INSERT OR REPLACE INTO registro_auditoria 
-            (archivo_tif, proceso_matriz, subproceso, clasificacion_humana, clasificacion_ia, veredicto) 
-            VALUES (?, ?, ?, ?, ?, ?)
+            (archivo_tif, proceso_matriz, subproceso, clasificacion_humana, clasificacion_ia, veredicto, nivel_confianza) 
+            VALUES (?, ?, ?, ?, ?, ?, 0.0)
         ''', (archivo, matriz, subproceso, kofax, ia, veredicto))
         conn.commit()
     except Exception as e:
@@ -201,3 +240,89 @@ def eliminar_usuario(user_id, usuario_actual):
         return False, f"Error: {e}"
     finally:
         conn.close()
+
+# --- FUNCIONES PARA LOTES DE AUDITORÍA (CELERY) ---
+
+def crear_lote_auditoria(task_id, total_documentos):
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO auditorias_lotes (id, estado, total_documentos) VALUES (?, ?, ?)",
+            (task_id, 'procesando', total_documentos)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error al crear lote: {e}")
+    finally:
+        conn.close()
+
+def actualizar_progreso_lote(task_id, documentos_procesados, error=False):
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    try:
+        if error:
+            cursor.execute("UPDATE auditorias_lotes SET errores = errores + 1 WHERE id = ?", (task_id,))
+        else:
+            cursor.execute("UPDATE auditorias_lotes SET documentos_procesados = ? WHERE id = ?", (documentos_procesados, task_id))
+        conn.commit()
+    except Exception as e:
+        print(f"Error al actualizar lote: {e}")
+    finally:
+        conn.close()
+
+def completar_lote_auditoria(task_id, estado='completado'):
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE auditorias_lotes SET estado = ?, fecha_fin = CURRENT_TIMESTAMP WHERE id = ?",
+            (estado, task_id)
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"Error al completar lote: {e}")
+    finally:
+        conn.close()
+
+def guardar_resultado_auditoria(task_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza=100.0):
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''
+            INSERT INTO auditoria_resultados 
+            (auditoria_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (task_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza))
+        conn.commit()
+    except Exception as e:
+        print(f"Error al guardar resultado: {e}")
+    finally:
+        conn.close()
+
+def obtener_estado_lote(task_id):
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM auditorias_lotes WHERE id = ?", (task_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
+
+def obtener_resultados_lote(task_id):
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM auditoria_resultados WHERE auditoria_id = ?", (task_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def listar_lotes_auditoria():
+    """Retorna todos los lotes de auditoría ordenados por fecha descendente."""
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM auditorias_lotes ORDER BY fecha_inicio DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

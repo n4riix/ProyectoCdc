@@ -32,17 +32,24 @@ def obtener_cerebro(matriz, subproceso):
     return modelo, vectorizador
 
 def predecir_documento(texto, matriz, subproceso):
-    """Recibe el texto extraído del OCR y devuelve la clasificación matemática."""
+    """Recibe el texto extraído del OCR y devuelve la clasificación matemática y la confianza."""
     if not texto:
-        return "DOCUMENTO EN BLANCO"
+        return "DOCUMENTO EN BLANCO", 1.0
 
     modelo, vectorizador = obtener_cerebro(matriz, subproceso)
     
     if not modelo:
-        return "MODELO_NO_ENTRENADO" # Alerta para avisarle al Admin
+        return "MODELO_NO_ENTRENADO", 0.0 # Alerta para avisarle al Admin
 
     # Transformar texto a números y predecir
     texto_vectorizado = vectorizador.transform([texto])
     prediccion = modelo.predict(texto_vectorizado)[0]
     
-    return prediccion
+    try:
+        proba = modelo.predict_proba(texto_vectorizado)[0]
+        confianza = max(proba)
+    except AttributeError:
+        # El modelo antiguo (LinearSVC) no soporta predict_proba
+        confianza = 1.0
+    
+    return prediccion, confianza

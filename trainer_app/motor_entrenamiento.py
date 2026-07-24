@@ -7,7 +7,7 @@ import logging
 import shutil
 from datetime import datetime
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.svm import LinearSVC
+from sklearn.linear_model import LogisticRegression
 from sklearn.dummy import DummyClassifier
 
 # Silenciar mensajes innecesarios de PaddleOCR en la consola
@@ -176,14 +176,17 @@ def entrenar_plataforma_completa(callback_progreso=None):
                     prog = 10 + int((clases_procesadas / total_clases) * 80)
                     callback_progreso(min(prog, 95))
 
-            if hay_datos_nuevos:
+            # FORZAR REENTRENAMIENTO: Usamos todos los datos (incluyendo históricos en caché)
+            hay_datos_nuevos = True
+            
+            if hay_datos_nuevos and len(textos) > 0:
                 clases_unicas = sorted(set(etiquetas))
                 vectorizador = TfidfVectorizer(max_features=5000, ngram_range=(1,2))
                 x_vect = vectorizador.fit_transform(textos)
 
                 if len(clases_unicas) > 1:
                     print(f"🧠 [Matemáticas] Re-calculando vectores estadísticos para {matriz} -> {subproceso}...")
-                    modelo = LinearSVC(C=1.0, random_state=42)
+                    modelo = LogisticRegression(max_iter=1000, random_state=42)
                 else:
                     print(f"⚠️ [{matriz}-{subproceso}] Solo una clase detectada ({clases_unicas[0]}). Generando un modelo de DummyClassifier de clase única.")
                     modelo = DummyClassifier(strategy='most_frequent')

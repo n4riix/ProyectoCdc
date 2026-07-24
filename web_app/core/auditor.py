@@ -2,90 +2,123 @@ import os
 import glob
 import csv
 import logging
+import uuid
+from celery_app import celery
 from .ocr_engine import obtener_motor_ocr
 from .routing_ia import predecir_documento
+from .db_models import crear_lote_auditoria, actualizar_progreso_lote, completar_lote_auditoria, guardar_resultado_auditoria
 
-
-def procesar_lote_kofax():
-    logging.info("🔍 [Auditor] Iniciando revisión del lote Kofax (Estructura Intexus 16 campos)...")
+@celery.task(bind=True, name="core.auditor.procesar_lote_kofax_task")
+def procesar_lote_kofax_task(self, task_id_str):
+    logging.info(f"🔍 [Auditor Celery] Iniciando revisión del lote Kofax {task_id_str}...")
     
     lote_dir = '/volumen_compartido/lote_kofax'
     os.makedirs(lote_dir, exist_ok=True)
     
-    logging.info(f"🕵️‍♂️ [RADAR] Buscando índices en: {lote_dir}")
-    
     archivos_indice = glob.glob(os.path.join(lote_dir, 'Indice_*.txt'))
-    
     if not archivos_indice:
-        return {"error": "No se encontró ningún archivo 'Indice_*.txt' en la carpeta 'lote_kofax'."}
+        completar_lote_auditoria(task_id_str, 'error')
+        return {"error": "No se encontró ningún archivo 'Indice_*.txt'."}
 
-    # Si hay varios índices, procesamos el primero que encuentre
     indice_path = archivos_indice[0]
-    resultados = []
+    
+    # 0. Crear un respaldo (backup) del índice original
+    import shutil
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    indice_backup_path = f"{indice_path}.{timestamp}.bak"
+    shutil.copy2(indice_path, indice_backup_path)
+    logging.info(f"Respaldo creado en: {indice_backup_path}")
 
+    # Contar total de líneas para saber cuánto vamos a procesar
+    total_lineas = 0
+    with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
+        reader = csv.reader(f)
+        total_lineas = sum(1 for row in reader if row and len(row) >= 16)
+
+    crear_lote_auditoria(task_id_str, total_lineas)
+    
     # Encendemos el OCR en la memoria RAM
     motor_ocr = obtener_motor_ocr() 
+    
+    from .inventory import obtener_modelos_conocidos
+    modelos_conocidos = obtener_modelos_conocidos()
 
-    # Usar csv.reader para manejar correctamente comillas y separadores
+    procesados = 0
+    numero_linea = 0
+
     with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
         reader = csv.reader(f)
 
         for partes in reader:
+            numero_linea += 1
             if not partes or len(partes) < 16:
                 continue
 
-            # --- MAPEO EXACTO DE LA ESTRUCTURA INTEXUS (16 CAMPOS) ---
             subproceso = partes[8].strip().upper()
-
-            # Extraemos la caja (ej: 'BT00123') y tomamos solo los 2 primeros caracteres ('BT')
             caja_completa = partes[13].strip().upper()
             matriz = caja_completa[:2]
 
+            if matriz != 'BT':
+                procesados += 1
+                actualizar_progreso_lote(task_id_str, procesados)
+                continue
+            
+            if matriz not in modelos_conocidos or subproceso not in modelos_conocidos[matriz]:
+                procesados += 1
+                actualizar_progreso_lote(task_id_str, procesados)
+                continue
+            
             tipo_esperado = partes[14].strip()
-            archivo = partes[15].strip()
+            clases_conocidas = modelos_conocidos[matriz][subproceso].get('clases', [])
+            if tipo_esperado not in clases_conocidas:
+                procesados += 1
+                actualizar_progreso_lote(task_id_str, procesados)
+                continue
 
-            # Normalizar posible ausencia de extensión
+            archivo = partes[15].strip()
             archivo_lower = archivo.lower()
             if not (archivo_lower.endswith('.tif') or archivo_lower.endswith('.pdf') or archivo_lower.endswith('.jpg')):
                 archivo += '.TIF'
 
             ruta_imagen = os.path.join(lote_dir, archivo)
 
+            # --- ESTADO EN VIVO PARA EL POLLING LIGERO ---
+            self.update_state(state='PROGRESS', meta={'archivo': archivo, 'procesados': procesados, 'total': total_lineas})
+
             if not os.path.exists(ruta_imagen):
-                resultados.append({
-                    "archivo": archivo,
-                    "matriz": matriz,
-                    "subproceso": subproceso,
-                    "esperado": tipo_esperado,
-                    "prediccion": "ARCHIVO FÍSICO NO ENCONTRADO",
-                    "estado": "danger"
-                })
+                guardar_resultado_auditoria(task_id_str, numero_linea, archivo, matriz, subproceso, tipo_esperado, "ARCHIVO FÍSICO NO ENCONTRADO", "danger")
+                procesados += 1
+                actualizar_progreso_lote(task_id_str, procesados)
                 continue
 
-            # 1. Visión Artificial: Leemos el documento
+            # 1. Visión Artificial
             texto = motor_ocr.extraer_texto(ruta_imagen)
 
-            # 2. Inferencia IA: Clasificamos
+            # 2. Inferencia IA
+            confianza = 1.0
             if not texto:
                 prediccion = "DOCUMENTO EN BLANCO / ILEGIBLE"
+                confianza = 0.0
             else:
-                prediccion = predecir_documento(texto, matriz, subproceso)
+                prediccion, confianza = predecir_documento(texto, matriz, subproceso)
 
-            # 3. Auditoría: ¿Coincide?
+            # 3. Auditoría con umbral de confianza (90%)
+            confianza_pct = round(confianza * 100, 1)
             if prediccion == "MODELO_NO_ENTRENADO":
                 estado = "warning"
+            elif confianza < 0.90:
+                # Baja confianza: forzar revisión humana aunque coincida
+                estado = "danger"
             elif prediccion == tipo_esperado:
                 estado = "success"
             else:
                 estado = "danger"
 
-            resultados.append({
-                "archivo": archivo,
-                "matriz": matriz,
-                "subproceso": subproceso,
-                "esperado": tipo_esperado,
-                "prediccion": prediccion,
-                "estado": estado
-            })
+            guardar_resultado_auditoria(task_id_str, numero_linea, archivo, matriz, subproceso, tipo_esperado, prediccion, estado, confianza_pct)
+            
+            procesados += 1
+            actualizar_progreso_lote(task_id_str, procesados)
 
-    return {"resultados": resultados}
+    completar_lote_auditoria(task_id_str, 'completado')
+    return {"status": "Completado", "total": procesados}

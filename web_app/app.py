@@ -4,13 +4,14 @@ import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from werkzeug.utils import secure_filename
+import csv
+import io
 
 # --- IMPORTACIONES DE TU NÚCLEO (CORE) ---
 from core.db_models import inicializar_base_datos, verificar_usuario, set_estado, get_estado, listar_usuarios, crear_usuario, eliminar_usuario
 from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida, borrar_todo_el_conocimiento, borrar_conocimiento_proceso, borrar_conocimiento_clase
-from core.auditor import procesar_lote_kofax
 
 # ==========================================
 # 1. CONFIGURACIÓN DE CARPETAS Y LOGS
@@ -91,7 +92,8 @@ def login():
 @app.route('/dashboard')
 @login_requerido
 def dashboard():
-    return render_template('dashboard.html', usuario=session['usuario'], rol=session['rol'])
+    modelos_conocidos = obtener_modelos_conocidos()
+    return render_template('dashboard.html', usuario=session['usuario'], rol=session['rol'], modelos_conocidos=modelos_conocidos)
 
 @app.route('/conocimiento')
 @login_requerido
@@ -104,12 +106,157 @@ def conocimiento():
         modelos_conocidos=modelos_conocidos
     )
 
+from core.auditor import procesar_lote_kofax_task
+from core.db_models import obtener_estado_lote, obtener_resultados_lote, listar_lotes_auditoria
+import uuid
+
+@app.route('/api/estado_auditoria/<task_id>', methods=['GET'])
+@login_requerido
+def api_estado_auditoria(task_id):
+    estado = obtener_estado_lote(task_id)
+    if not estado:
+        return jsonify({"archivo": "No encontrado", "procesados": 0, "meta": 0, "estado": "error"})
+    
+    # Intentar obtener el progreso actual desde Celery si la tarea sigue activa
+    from celery_app import celery
+    task = celery.AsyncResult(task_id)
+    archivo_actual = "Iniciando..."
+    if task.state == 'PROGRESS':
+        archivo_actual = task.info.get('archivo', 'Procesando...')
+    elif estado['estado'] == 'completado':
+        archivo_actual = "Completado"
+    
+    return jsonify({
+        "archivo": archivo_actual,
+        "procesados": estado['documentos_procesados'],
+        "meta": estado['total_documentos'],
+        "estado": estado['estado']
+    })
+
 @app.route('/api/auditar_lote', methods=['POST'])
 @login_requerido
 def api_auditar_lote():
-    # Esta es la ruta que llama al archivo auditor.py cuando presionas el botón verde
-    respuesta = procesar_lote_kofax()
-    return jsonify(respuesta)
+    task_id = str(uuid.uuid4())
+    procesar_lote_kofax_task.apply_async(args=[task_id], task_id=task_id)
+    return jsonify({"status": "Lote enviado a procesamiento en segundo plano", "task_id": task_id})
+
+@app.route('/api/auditoria_resultados/<task_id>', methods=['GET'])
+@login_requerido
+def api_auditoria_resultados(task_id):
+    resultados = obtener_resultados_lote(task_id)
+    estado = obtener_estado_lote(task_id)
+    return jsonify({"resultados": resultados, "lote": estado})
+
+@app.route('/api/historial_lotes', methods=['GET'])
+@login_requerido
+def api_historial_lotes():
+    lotes = listar_lotes_auditoria()
+    return jsonify(lotes)
+
+@app.route('/api/descargar_reporte/<task_id>', methods=['GET'])
+@login_requerido
+def api_descargar_reporte(task_id):
+    """Genera y descarga un CSV con todos los resultados de la auditoría."""
+    resultados = obtener_resultados_lote(task_id)
+    estado = obtener_estado_lote(task_id)
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Línea', 'Archivo', 'Matriz', 'Subproceso', 'Tipo Esperado (Cdc)', 'Predicción IA', 'Confianza %', 'Veredicto'])
+    
+    for r in resultados:
+        veredicto_texto = 'COINCIDE' if r['estado'] == 'success' else ('NO ENTRENADO' if r['estado'] == 'warning' else 'DISCREPANCIA')
+        confianza_val = r.get('confianza', '')
+        writer.writerow([r.get('linea_indice', ''), r['archivo'], r.get('matriz', ''), r.get('subproceso', ''), r.get('esperado', ''), r.get('prediccion', ''), confianza_val, veredicto_texto])
+    
+    output.seek(0)
+    bytes_output = io.BytesIO(output.getvalue().encode('utf-8-sig'))
+    
+    fecha = estado['fecha_inicio'][:10] if estado and estado.get('fecha_inicio') else 'sin_fecha'
+    nombre_archivo = f'Reporte_Auditoria_{fecha}_{task_id[:8]}.csv'
+    
+    return send_file(bytes_output, mimetype='text/csv', as_attachment=True, download_name=nombre_archivo)
+
+@app.route('/api/imagen/<path:nombre_archivo>', methods=['GET'])
+@login_requerido
+def api_previsualizar_imagen(nombre_archivo):
+    """Sirve una imagen del lote para previsualización en el navegador (convirtiendo TIF a JPEG si es necesario)."""
+    lote_dir = '/volumen_compartido/lote_kofax'
+    ruta = os.path.join(lote_dir, nombre_archivo)
+    if not os.path.exists(ruta):
+        return jsonify({"error": "Archivo no encontrado"}), 404
+        
+    try:
+        from PIL import Image
+        img = Image.open(ruta)
+        # Convert to RGB (to handle CMYK, palettes, or TIFF specifics)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+            
+        img_io = io.BytesIO()
+        img.save(img_io, 'JPEG', quality=85)
+        img_io.seek(0)
+        return send_file(img_io, mimetype='image/jpeg')
+    except Exception as e:
+        logging.error(f"Error convirtiendo imagen {ruta}: {e}")
+        return jsonify({"error": "No se pudo procesar la imagen"}), 500
+
+@app.route('/api/discrepancias/<task_id>', methods=['GET'])
+@login_requerido
+def api_discrepancias(task_id):
+    """Devuelve solo las filas con discrepancias para revisión manual."""
+    resultados = obtener_resultados_lote(task_id)
+    discrepancias = [r for r in resultados if r['estado'] == 'danger']
+    return jsonify({"discrepancias": discrepancias})
+
+@app.route('/api/aplicar_correcciones/<task_id>', methods=['POST'])
+@login_requerido
+def api_aplicar_correcciones(task_id):
+    """Aplica solo las correcciones aprobadas por el usuario al archivo Indice_*.txt."""
+    import glob
+    data = request.get_json()
+    correcciones_aprobadas = data.get('correcciones', [])  # Lista de {linea_indice, nuevo_valor}
+    
+    if not correcciones_aprobadas:
+        return jsonify({"error": "No se recibieron correcciones para aplicar."}), 400
+    
+    lote_dir = '/volumen_compartido/lote_kofax'
+    archivos_indice = glob.glob(os.path.join(lote_dir, 'Indice_*.txt'))
+    if not archivos_indice:
+        return jsonify({"error": "No se encontró el archivo Indice_*.txt."}), 404
+    
+    indice_path = archivos_indice[0]
+    
+    # Leer todas las líneas del archivo original
+    with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
+        lineas = f.readlines()
+    
+    # Crear un diccionario de correcciones aprobadas {linea: nuevo_valor}
+    mapa_correcciones = {int(c['linea_indice']): c['nuevo_valor'] for c in correcciones_aprobadas}
+    
+    # Aplicar los cambios
+    cambios_aplicados = 0
+    for num_linea, nuevo_valor in mapa_correcciones.items():
+        if 1 <= num_linea <= len(lineas):
+            linea_original = lineas[num_linea - 1]
+            # Parseamos la línea como CSV para modificar solo el campo 14 (Tipo Documental)
+            reader = csv.reader(io.StringIO(linea_original))
+            for partes in reader:
+                if len(partes) >= 16:
+                    partes[14] = nuevo_valor
+                    # Reconstruimos la línea
+                    output_line = io.StringIO()
+                    writer = csv.writer(output_line)
+                    writer.writerow(partes)
+                    lineas[num_linea - 1] = output_line.getvalue()
+                    cambios_aplicados += 1
+    
+    # Escribir de vuelta
+    with open(indice_path, 'w', encoding='utf-8', newline='') as f:
+        f.writelines(lineas)
+    
+    logging.info(f"[AUDITOR] {session['usuario']} aplicó {cambios_aplicados} correcciones al índice.")
+    return jsonify({"mensaje": f"Se aplicaron {cambios_aplicados} correcciones al archivo índice.", "cambios": cambios_aplicados})
 
 # ==========================================
 # 5. RUTAS DE ADMINISTRACIÓN Y ENTRENAMIENTO

@@ -13,6 +13,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - SECRET_KEY=${SECRET_KEY}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
     volumes:
       - ./web_app:/app
       - ./volumen_compartido:/volumen_compartido
@@ -47,3 +51,38 @@ services:
         limits:
           cpus: '${TRAINER_CPUS:-2.5}'      # BOZAL: Máximo 2.5 hilos (de los 4 que tiene tu Ryzen)
           memory: '${TRAINER_MEM:-4.5G}'     # BOZAL: Máximo 4.5 GB de RAM (Tienes 6.7 libres)
+
+  # ----------------------------------------------------
+  # SERVICIO 3: REDIS (Intermediario de Tareas)
+  # ----------------------------------------------------
+  redis:
+    image: redis:alpine
+    container_name: cdc_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  # ----------------------------------------------------
+  # SERVICIO 4: CELERY WORKER (Procesamiento de IA en 2do Plano)
+  # ----------------------------------------------------
+  celery_worker:
+    build:
+      context: ./web_app
+    container_name: cdc_celery
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./web_app:/app
+      - ./volumen_compartido:/volumen_compartido
+      - ./volumen_compartido/paddle_modelos:/home/appuser/.paddleocr
+    command: celery -A celery_app.celery worker --loglevel=info
+    restart: unless-stopped
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: '${CELERY_CPUS:-2.0}'      # Máximo 2 hilos para el procesamiento masivo
+          memory: '${CELERY_MEM:-4.0G}'    # Máximo 4 GB de RAM

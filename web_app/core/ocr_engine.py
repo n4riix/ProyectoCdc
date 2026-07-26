@@ -7,6 +7,10 @@ logging.getLogger("ppocr").setLevel(logging.WARNING)
 
 class MotorOCR:
     def __init__(self):
+        self.contador_llamadas = 0
+        self._inicializar_modelo()
+
+    def _inicializar_modelo(self):
         print("⚙️ Encendiendo Motor OCR (Modo CPU Intel)...")
         self.ocr = PaddleOCR(
             use_angle_cls=False, 
@@ -18,6 +22,17 @@ class MotorOCR:
 
     def extraer_texto(self, ruta_imagen):
         """Lee una imagen física y retorna todo el texto extraído como un string."""
+        self.contador_llamadas += 1
+        
+        # PREVENCIÓN DE MEMORY LEAK (OOM) AGRESIVA:
+        # Reducido de 500 a 50 para asegurar que nunca supere los 4GB de límite.
+        if self.contador_llamadas % 50 == 0:
+            print(f"♻️ [Anti-Memory Leak] Reiniciando motor OCR en la llamada {self.contador_llamadas} para liberar RAM...")
+            del self.ocr
+            gc.collect()
+            self._inicializar_modelo()
+            gc.collect()
+
         texto_extraido = ""
         try:
             resultados = self.ocr.ocr(ruta_imagen, cls=False)
@@ -25,9 +40,7 @@ class MotorOCR:
                 for linea in resultados[0]:
                     texto_extraido += linea[1][0] + " "
             
-            # Limpieza de memoria instantánea para evitar Memory Leaks
             resultados = None
-            gc.collect()
             
             return texto_extraido.strip()
         except Exception as e:

@@ -15,6 +15,7 @@ def make_celery(app_name=__name__):
         result_serializer='json',
         timezone='UTC',
         enable_utc=True,
+        worker_max_tasks_per_child=1,  # FORZA QUE EL PROCESO CELERY MUERA Y REVIVA TRAS CADA TAREA PARA DEVOLVER RAM AL OS
     )
     
     return celery

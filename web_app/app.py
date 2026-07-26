@@ -472,6 +472,15 @@ def eliminar_usuario_route():
         flash(f"❌ {mensaje}", "danger")
     return redirect(url_for('superadmin'))
 
+@app.route('/api/reanudar_lote/<task_id>', methods=['POST'])
+@login_requerido
+def api_reanudar_lote(task_id):
+    from core.auditor import procesar_lote_kofax_task
+    # Volver a lanzar la misma tarea en Celery usando el ID existente
+    procesar_lote_kofax_task.apply_async(args=[task_id], task_id=task_id)
+    logging.info(f"Reanudando auditoría lote: {task_id}")
+    return jsonify({"mensaje": "Auditoría reanudada en segundo plano", "task_id": task_id})
+
 @app.route('/logout')
 def logout():
     session.clear()

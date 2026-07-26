@@ -198,6 +198,7 @@
         });
 
         function cargarResultados(taskId) {
+            currentTaskId = taskId; // FIX: Permite que los botones de descargar CSV y Discrepancias funcionen para el historial
             fetch(`/api/auditoria_resultados/${taskId}`)
             .then(res => res.json())
             .then(data => {
@@ -479,6 +480,8 @@
             .then(lotes => {
                 tablaHistorial.innerHTML = '';
                 lotes.forEach(l => {
+                    const esIncompleto = (l.estado !== 'completado');
+                    const btnReanudar = esIncompleto ? `<button class="btn btn-warning" style="margin-left:5px; background-color:#f0ad4e; color:white; border:none; padding:8px 12px; border-radius:4px; cursor:pointer;" onclick="reanudarAuditoria('${l.id}')">▶️ Reconectar / Reanudar</button>` : '';
                     const row = `
                         <tr style="border-bottom: 1px solid var(--input-border);">
                             <td style="padding: 10px; font-size: 12px; font-family: monospace;">${l.id.substring(0, 8)}...</td>
@@ -486,7 +489,8 @@
                             <td style="padding: 10px;">${l.documentos_procesados} / ${l.total_documentos}</td>
                             <td style="padding: 10px;">${l.estado === 'completado' ? '✅' : (l.estado === 'procesando' ? '⏳' : '❌')} ${l.estado}</td>
                             <td style="padding: 10px;">
-                                <button class="btn btn-primary" onclick="cargarResultados('${l.id}'); modalHistorial.style.display='none';">Ver Resultados</button>
+                                <button class="btn btn-primary" onclick="cargarResultados('${l.id}'); modalHistorial.style.display='none';">Ver Resultados Parciales/Finales</button>
+                                ${btnReanudar}
                             </td>
                         </tr>
                     `;
@@ -499,6 +503,30 @@
         btnCerrarHistorial.addEventListener('click', () => {
             modalHistorial.style.display = 'none';
         });
+
+        window.reanudarAuditoria = function(taskId) {
+            modalHistorial.style.display = 'none';
+            panelResultados.style.display = 'none';
+            botonesPost.style.display = 'none';
+            tablaCuerpo.innerHTML = '';
+            textoEstado.innerHTML = 'Reanudando y Reconectando...';
+            btnAuditar.disabled = true;
+            btnAuditar.innerText = '⏳ Auditando... (Puedes cerrar esta ventana)';
+            consolaAuditoria.innerHTML = `> Reconectando con el motor de IA en segundo plano...<br>`;
+            btnCerrarModal.style.display = 'none';
+            modalAuditoria.style.display = 'block';
+            ultimoArchivo = "";
+            currentTaskId = taskId;
+
+            fetch(`/api/reanudar_lote/${taskId}`, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                agregarLog(`> Lote conectado (ID: ${taskId}).`, "#888");
+                iniciarPolling(taskId);
+            }).catch(e => {
+                agregarLog(`❌ Error al reconectar con el lote.`, "#d9534f");
+            });
+        };
     </script>
 </body>
 </html>

@@ -188,6 +188,16 @@ def get_estado(clave, valor_por_defecto=None):
     return valor_por_defecto
 
 
+def obtener_lineas_procesadas(auditoria_id):
+    """Devuelve un set con los números de línea ya procesados para un lote."""
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    cursor.execute("SELECT linea_indice FROM auditoria_resultados WHERE auditoria_id = ?", (auditoria_id,))
+    lineas = {row['linea_indice'] for row in cursor.fetchall() if row['linea_indice'] is not None}
+    conn.close()
+    return lineas
+
+
 def listar_usuarios():
     """Retorna la lista de todos los usuarios registrados (sin contraseñas)."""
     conn = obtener_conexion()
@@ -319,9 +329,27 @@ def obtener_resultados_lote(task_id):
     return [dict(r) for r in rows]
 
 def listar_lotes_auditoria():
-    """Retorna todos los lotes de auditoría ordenados por fecha descendente."""
+    """Retorna los últimos 12 lotes de auditoría y limpia los más antiguos de la BD."""
     conn = obtener_conexion()
     cursor = conn.cursor()
+    
+    # 1. Limpieza automática (Mantiene solo los 12 más recientes)
+    try:
+        cursor.execute('''
+            SELECT id FROM auditorias_lotes 
+            ORDER BY fecha_inicio DESC 
+            LIMIT -1 OFFSET 12
+        ''')
+        lotes_viejos = cursor.fetchall()
+        for lote in lotes_viejos:
+            cursor.execute("DELETE FROM auditoria_resultados WHERE auditoria_id = ?", (lote['id'],))
+            cursor.execute("DELETE FROM auditorias_lotes WHERE id = ?", (lote['id'],))
+        if lotes_viejos:
+            conn.commit()
+    except Exception as e:
+        print(f"Error en auto-limpieza de historial: {e}")
+
+    # 2. Retornar los restantes
     cursor.execute("SELECT * FROM auditorias_lotes ORDER BY fecha_inicio DESC")
     rows = cursor.fetchall()
     conn.close()

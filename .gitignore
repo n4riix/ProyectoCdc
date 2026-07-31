@@ -15,7 +15,11 @@ __pycache__/
 # ========================
 # SEGURIDAD Y SECRETOS (¡CRÍTICO!)
 # ========================
+# El .env NO se sube a Git (cada servidor tiene el suyo localmente)
 .env
+.env.produccion
+# El .env.example SÍ se sube como plantilla de documentación
+!.env.example
 yes
 yes.pub
 *.pem

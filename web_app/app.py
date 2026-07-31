@@ -382,6 +382,63 @@ def superadmin():
         usuarios=usuarios
     )
 
+@app.route('/superadmin/exportar_ia', methods=['GET'])
+@login_requerido
+def exportar_ia():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+    
+    import shutil
+    import time
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    ruta_cerebros = os.path.join(base_dir, '..', 'volumen_compartido', 'cerebros_ia')
+    ruta_zip_salida = os.path.join('/tmp', f'cerebros_ia_export_{int(time.time())}')
+    
+    try:
+        shutil.make_archive(ruta_zip_salida, 'zip', ruta_cerebros)
+        archivo_final = ruta_zip_salida + '.zip'
+        logging.info(f"[SUPERADMIN] {session['usuario']} exportó los conocimientos de la IA.")
+        return send_file(archivo_final, as_attachment=True, download_name='Conocimiento_IA_Exportado.zip')
+    except Exception as e:
+        flash(f"Error al generar exportación: {e}", "danger")
+        return redirect(url_for('superadmin'))
+
+@app.route('/superadmin/importar_ia', methods=['POST'])
+@login_requerido
+def importar_ia():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+        
+    archivo_zip = request.files.get('archivo_zip')
+    if not archivo_zip or not archivo_zip.filename.endswith('.zip'):
+        flash("Por favor sube un archivo .zip válido.", "danger")
+        return redirect(url_for('superadmin'))
+        
+    import shutil
+    import tempfile
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    ruta_cerebros = os.path.join(base_dir, '..', 'volumen_compartido', 'cerebros_ia')
+    os.makedirs(ruta_cerebros, exist_ok=True)
+    
+    try:
+        tmp_path = os.path.join(tempfile.gettempdir(), secure_filename(archivo_zip.filename))
+        archivo_zip.save(tmp_path)
+        
+        shutil.unpack_archive(tmp_path, ruta_cerebros, 'zip')
+        os.remove(tmp_path)
+        
+        flash("✅ Modelos de IA importados e instalados correctamente.", "success")
+        logging.info(f"[SUPERADMIN] {session['usuario']} importó un paquete de conocimiento IA.")
+    except Exception as e:
+        flash(f"❌ Error al importar IA: {e}", "danger")
+        logging.error(f"Error importando IA: {e}")
+        
+    return redirect(url_for('superadmin'))
+
 @app.route('/superadmin/borrar_todo', methods=['POST'])
 @login_requerido
 def borrar_todo():

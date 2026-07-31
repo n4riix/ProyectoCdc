@@ -1,0 +1,10 @@
+#!/usr/bin/expect -f
+set timeout 20
+spawn ssh -o StrictHostKeyChecking=no narix@10.0.0.54 "cd /home/narix/app/proyectocdc && echo '--- LS ---' && ls -la && echo '--- GIT STATUS ---' && git status && echo '--- GIT LOG ---' && git log --oneline -5"
+expect {
+    "*assword:*" {
+        send "3346041\r"
+        exp_continue
+    }
+    eof
+}

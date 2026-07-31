@@ -17,10 +17,13 @@ RUN pip config set global.timeout 600 && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --timeout 600 --retries 10 -r requirements.txt
 
+COPY entrypoint.sh .
+RUN chmod +x /app/entrypoint.sh
+
 COPY . .
 RUN groupadd --system appuser && useradd --system --gid appuser appuser && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 5000
 
-CMD ["python", "app.py"]
+CMD ["/app/entrypoint.sh"]

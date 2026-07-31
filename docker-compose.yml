@@ -45,8 +45,7 @@ services:
       - ./web_app:/app
       - ./volumen_compartido:/volumen_compartido
       - ./volumen_compartido/paddle_modelos:/home/appuser/.paddleocr
-    # 🚀 MOTOR GUNICORN: 2 workers, puerto 5000, 10 min timeout
-    command: gunicorn --workers 2 --bind 0.0.0.0:5000 --timeout 600 app:app
+    # El script entrypoint.sh decide Flask (LOCAL) o Gunicorn (QA/PROD) según ENVIRONMENT
     restart: unless-stopped
     deploy:
       resources:

@@ -17,6 +17,7 @@ __pycache__/
 # ========================
 # El .env NO se sube a Git (cada servidor tiene el suyo localmente)
 .env
+.env.qa
 .env.produccion
 # El .env.example SÍ se sube como plantilla de documentación
 !.env.example

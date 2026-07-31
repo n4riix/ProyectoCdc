@@ -26,4 +26,4 @@ USER appuser
 
 EXPOSE 5000
 
-CMD ["/app/entrypoint.sh"]
+CMD ["bash", "/app/entrypoint.sh"]

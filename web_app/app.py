@@ -150,6 +150,12 @@ def api_estado_auditoria(task_id):
 @app.route('/api/auditar_lote', methods=['POST'])
 @login_requerido
 def api_auditar_lote():
+    # Salvaguarda: Evitar múltiples auditorías simultáneas
+    lotes = listar_lotes_auditoria()
+    for lote in lotes:
+        if lote['estado'] == 'procesando':
+            return jsonify({"error": "Ya hay una auditoría en curso. Por favor espera a que termine para lanzar otra."}), 400
+
     task_id = str(uuid.uuid4())
     procesar_lote_kofax_task.apply_async(args=[task_id], task_id=task_id)
     return jsonify({"status": "Lote enviado a procesamiento en segundo plano", "task_id": task_id})

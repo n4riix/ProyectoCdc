@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ----------------------------------------------------
   # SERVICIO 0: POSTGRESQL (Base de Datos Relacional)

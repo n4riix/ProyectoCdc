@@ -62,62 +62,85 @@ def inicializar_base_datos():
     cursor = obtener_cursor(conn)
 
     if is_postgres:
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS usuarios (
-                id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                rol TEXT NOT NULL CHECK(rol IN ('superadmin', 'admin', 'analista'))
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS registro_auditoria (
-                id SERIAL PRIMARY KEY,
-                archivo_tif TEXT NOT NULL UNIQUE,
-                proceso_matriz TEXT NOT NULL,
-                subproceso TEXT NOT NULL,
-                clasificacion_humana TEXT NOT NULL,
-                clasificacion_ia TEXT NOT NULL,
-                nivel_confianza REAL NOT NULL,
-                veredicto TEXT NOT NULL,
-                fecha_revision TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS estado_sistema (
-                clave TEXT PRIMARY KEY,
-                valor TEXT NOT NULL
-            )
-        ''')
-        cursor.execute("INSERT INTO estado_sistema (clave, valor) VALUES ('entrenamiento', 'LISTO') ON CONFLICT (clave) DO NOTHING")
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS auditorias_lotes (
-                id TEXT PRIMARY KEY,
-                fecha_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                fecha_fin TIMESTAMP,
-                estado TEXT NOT NULL,
-                total_documentos INTEGER DEFAULT 0,
-                documentos_procesados INTEGER DEFAULT 0,
-                errores INTEGER DEFAULT 0,
-                archivo_indice TEXT
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS auditoria_resultados (
-                id SERIAL PRIMARY KEY,
-                auditoria_id TEXT NOT NULL,
-                linea_indice INTEGER,
-                archivo TEXT NOT NULL,
-                matriz TEXT,
-                subproceso TEXT,
-                esperado TEXT,
-                prediccion TEXT,
-                confianza REAL DEFAULT 100.0,
-                estado TEXT,
-                FOREIGN KEY(auditoria_id) REFERENCES auditorias_lotes(id)
-            )
-        ''')
+        # --- PROTECCIÓN CONTRA CONDICIÓN DE CARRERA (Race Condition) ---
+        # Con Gunicorn multi-worker, varios procesos pueden intentar inicializar
+        # la BD al mismo tiempo. El Advisory Lock de Postgres garantiza que solo
+        # uno lo haga a la vez. El número 99991 es un ID arbitrario único para este lock.
+        import time
+        lock_acquired = False
+        for intento in range(10):
+            cursor.execute("SELECT pg_try_advisory_lock(99991)")
+            result = cursor.fetchone()
+            if result and list(result.values())[0]:
+                lock_acquired = True
+                break
+            time.sleep(0.5)
+
+        if not lock_acquired:
+            conn.close()
+            return  # Otro proceso ya está inicializando, no hacer nada
+
+        try:
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS usuarios (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    rol TEXT NOT NULL CHECK(rol IN ('superadmin', 'admin', 'analista'))
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS registro_auditoria (
+                    id SERIAL PRIMARY KEY,
+                    archivo_tif TEXT NOT NULL UNIQUE,
+                    proceso_matriz TEXT NOT NULL,
+                    subproceso TEXT NOT NULL,
+                    clasificacion_humana TEXT NOT NULL,
+                    clasificacion_ia TEXT NOT NULL,
+                    nivel_confianza REAL NOT NULL,
+                    veredicto TEXT NOT NULL,
+                    fecha_revision TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS estado_sistema (
+                    clave TEXT PRIMARY KEY,
+                    valor TEXT NOT NULL
+                )
+            ''')
+            cursor.execute("INSERT INTO estado_sistema (clave, valor) VALUES ('entrenamiento', 'LISTO') ON CONFLICT (clave) DO NOTHING")
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS auditorias_lotes (
+                    id TEXT PRIMARY KEY,
+                    fecha_inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    fecha_fin TIMESTAMP,
+                    estado TEXT NOT NULL,
+                    total_documentos INTEGER DEFAULT 0,
+                    documentos_procesados INTEGER DEFAULT 0,
+                    errores INTEGER DEFAULT 0,
+                    archivo_indice TEXT
+                )
+            ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS auditoria_resultados (
+                    id SERIAL PRIMARY KEY,
+                    auditoria_id TEXT NOT NULL,
+                    linea_indice INTEGER,
+                    archivo TEXT NOT NULL,
+                    matriz TEXT,
+                    subproceso TEXT,
+                    esperado TEXT,
+                    prediccion TEXT,
+                    confianza REAL DEFAULT 100.0,
+                    estado TEXT,
+                    FOREIGN KEY(auditoria_id) REFERENCES auditorias_lotes(id)
+                )
+            ''')
+        finally:
+            # Siempre liberar el lock al terminar (éxito o error)
+            cursor.execute("SELECT pg_advisory_unlock(99991)")
+
     else:
         # Lógica original de SQLite (con su migración)
         cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='usuarios'")

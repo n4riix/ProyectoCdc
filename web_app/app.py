@@ -8,6 +8,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from werkzeug.utils import secure_filename
 import csv
 import io
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # --- IMPORTACIONES DE TU NÚCLEO (CORE) ---
 from core.db_models import inicializar_base_datos, verificar_usuario, set_estado, get_estado, listar_usuarios, crear_usuario, eliminar_usuario
@@ -44,10 +47,20 @@ logging.getLogger('werkzeug').setLevel(logging.WARNING)
 # --- FIN CONFIGURACIÓN DE LOGS ---
 
 app = Flask(__name__)
+csrf = CSRFProtect(app)
 
 # ==========================================
 # 2. INICIALIZACIÓN DE FLASK Y SEGURIDAD
 # ==========================================
+
+# Configurar Rate Limiter para prevenir ataques de fuerza bruta
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+)
+
 # Obtenemos la llave inyectada por Docker (.env)
 app.secret_key = os.environ.get('SECRET_KEY')
 
@@ -74,6 +87,7 @@ def login_requerido(f):
 # 4. RUTAS PRINCIPALES Y DE AUDITORÍA
 # ==========================================
 @app.route('/', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
 def login():
     if request.method == 'POST':
         username = request.form['username']
@@ -183,12 +197,19 @@ def api_previsualizar_imagen(nombre_archivo):
     """Sirve una imagen del lote para previsualización en el navegador (convirtiendo TIF a JPEG si es necesario)."""
     lote_dir = '/volumen_compartido/lote_kofax'
     ruta = os.path.join(lote_dir, nombre_archivo)
-    if not os.path.exists(ruta):
+    
+    # Prevenir Path Traversal
+    real_lote_dir = os.path.realpath(lote_dir)
+    real_ruta = os.path.realpath(ruta)
+    if not real_ruta.startswith(real_lote_dir):
+        return jsonify({"error": "Acceso denegado. Ruta inválida."}), 403
+
+    if not os.path.exists(real_ruta):
         return jsonify({"error": "Archivo no encontrado"}), 404
         
     try:
         from PIL import Image
-        img = Image.open(ruta)
+        img = Image.open(real_ruta)
         # Convert to RGB (to handle CMYK, palettes, or TIFF specifics)
         if img.mode != 'RGB':
             img = img.convert('RGB')
@@ -471,10 +492,19 @@ def importar_ia():
     os.makedirs(ruta_cerebros, exist_ok=True)
     
     try:
+        import zipfile
         tmp_path = os.path.join(tempfile.gettempdir(), secure_filename(archivo_zip.filename))
         archivo_zip.save(tmp_path)
         
-        shutil.unpack_archive(tmp_path, ruta_cerebros, 'zip')
+        # Validar el contenido del ZIP para prevenir Path Traversal / Zip Slip
+        with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
+            for member in zip_ref.namelist():
+                # Evitar rutas absolutas o relativas hacia atrás
+                if member.startswith('/') or '..' in member:
+                    raise ValueError(f"Archivo sospechoso en el ZIP (Posible Path Traversal): {member}")
+            
+            zip_ref.extractall(ruta_cerebros)
+            
         os.remove(tmp_path)
         
         flash("✅ Modelos de IA importados e instalados correctamente.", "success")

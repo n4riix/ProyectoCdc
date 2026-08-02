@@ -12,6 +12,11 @@ services:
       POSTGRES_USER: ${DB_USER:-intexus}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-intexus01}
       POSTGRES_DB: ${DB_NAME:-cdc_database}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-intexus} -d ${DB_NAME:-cdc_database}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - ./volumen_compartido/postgres_data:/var/lib/postgresql/data
     ports:
@@ -39,8 +44,15 @@ services:
       - DB_NAME=${DB_NAME:-cdc_database}
       - DB_PORT=${DB_PORT:-5432}
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
     volumes:
       - ./web_app:/app
       - ./volumen_compartido:/volumen_compartido
@@ -71,7 +83,8 @@ services:
       - DB_NAME=${DB_NAME:-cdc_database}
       - DB_PORT=${DB_PORT:-5432}
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     volumes:
       - ./trainer_app:/app
       - ./volumen_compartido:/volumen_compartido
@@ -91,6 +104,11 @@ services:
     image: redis:alpine
     container_name: cdc_redis
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     ports:
       - "6379:6379"
 
@@ -119,8 +137,10 @@ services:
     command: celery -A celery_app.celery worker --loglevel=info
     restart: unless-stopped
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     deploy:
       resources:
         limits:

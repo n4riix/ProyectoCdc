@@ -204,13 +204,17 @@ def inicializar_base_datos():
     # Inyección de usuarios maestros
     cursor.execute("SELECT COUNT(*) as count FROM usuarios")
     if cursor.fetchone()['count'] == 0:
-        pass_hash = generate_password_hash('admin123') 
-        execute_query(cursor, "INSERT INTO usuarios (username, password_hash, rol) VALUES (?, ?, ?)", ('admin', pass_hash, 'admin'))
+        admin_user = os.environ.get('DEFAULT_ADMIN_USER', 'admin')
+        admin_pass = os.environ.get('DEFAULT_ADMIN_PASS', 'cambiame123')
+        pass_hash = generate_password_hash(admin_pass) 
+        execute_query(cursor, "INSERT INTO usuarios (username, password_hash, rol) VALUES (?, ?, ?)", (admin_user, pass_hash, 'admin'))
     
-    execute_query(cursor, "SELECT COUNT(*) as count FROM usuarios WHERE username = ?", ('ecastro',))
+    super_user = os.environ.get('DEFAULT_SUPERADMIN_USER', 'superadmin')
+    execute_query(cursor, "SELECT COUNT(*) as count FROM usuarios WHERE username = ?", (super_user,))
     if cursor.fetchone()['count'] == 0:
-        pass_hash_super = generate_password_hash('3346041')
-        execute_query(cursor, "INSERT INTO usuarios (username, password_hash, rol) VALUES (?, ?, ?)", ('ecastro', pass_hash_super, 'superadmin'))
+        super_pass = os.environ.get('DEFAULT_SUPERADMIN_PASS', 'cambiame_super123')
+        pass_hash_super = generate_password_hash(super_pass)
+        execute_query(cursor, "INSERT INTO usuarios (username, password_hash, rol) VALUES (?, ?, ?)", (super_user, pass_hash_super, 'superadmin'))
 
     conn.commit()
     conn.close()

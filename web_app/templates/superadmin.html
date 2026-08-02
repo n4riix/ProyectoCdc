@@ -162,6 +162,7 @@
                 <div style="flex: 1; min-width: 300px; background: rgba(0,0,0,0.05); padding: 15px; border-radius: 8px; border: 1px solid var(--input-border);">
                     <h3 style="margin-top: 0; color: var(--text-heading);">Crear Nuevo Usuario</h3>
                     <form method="POST" action="/superadmin/crear_usuario">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <div class="form-group" style="margin-bottom: 12px;">
                             <label>Nombre de Usuario:</label>
                             <input type="text" name="nuevo_username" class="form-control" placeholder="Ej: jlopez" required style="width: 100%;">
@@ -211,6 +212,7 @@
                                             <span style="font-size: 0.9rem; opacity: 0.6; font-style: italic;">Sesión activa</span>
                                         {% else %}
                                             <form method="POST" action="/superadmin/eliminar_usuario" style="display:inline;" onsubmit="return confirm('¿Seguro que deseas eliminar el usuario \'{{ u.username }}\'?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <input type="hidden" name="user_id" value="{{ u.id }}">
                                                 <button type="submit" class="btn-danger" style="padding: 4px 10px; font-size: 0.8rem;">Eliminar</button>
                                             </form>
@@ -240,6 +242,7 @@
                     <h3 style="text-align: center;">Importar Conocimiento</h3>
                     <p style="font-size: 0.9rem; margin-bottom: 15px; text-align: center;">Sube un archivo ZIP generado previamente. <br><strong style="color:#d9534f;">Nota: Se fusionarán/sobrescribirán los modelos actuales.</strong></p>
                     <form method="POST" action="/superadmin/importar_ia" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <input type="file" name="archivo_zip" accept=".zip" class="form-control" required style="margin-bottom: 15px; width: 100%;">
                         <button type="submit" class="btn-success" style="width: 100%;" onclick="this.innerHTML='Subiendo e instalando...';">⬆️ Importar IA desde ZIP</button>
                     </form>
@@ -264,6 +267,7 @@
                                     <div class="proceso-header">
                                         <span class="proceso-titulo">📁 Proceso: {{ proceso }} <span style="font-size: 0.85rem; opacity: 0.7;">({{ info.clases | length }} clases)</span></span>
                                         <form method="POST" action="/superadmin/borrar_proceso" style="display:inline;" onsubmit="return confirm('⚠️ ¿Estás seguro de ELIMINAR el proceso {{ proceso }} completo?\n\nSe borrarán el cerebro entrenado y TODOS los documentos de este proceso.\n\nEsta acción es IRREVERSIBLE.');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                             <input type="hidden" name="matriz" value="{{ matriz }}">
                                             <input type="hidden" name="proceso" value="{{ proceso }}">
                                             <button type="submit" class="btn-danger">🗑️ Borrar Proceso</button>
@@ -274,6 +278,7 @@
                                             <span class="clase-item">
                                                 {{ clase }}
                                                 <form method="POST" action="/superadmin/borrar_clase" style="display:inline;" onsubmit="return confirm('¿Eliminar la clase \'{{ clase }}\' del proceso {{ proceso }}?');">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                     <input type="hidden" name="matriz" value="{{ matriz }}">
                                                     <input type="hidden" name="proceso" value="{{ proceso }}">
                                                     <input type="hidden" name="clase" value="{{ clase }}">
@@ -299,6 +304,7 @@
             <h2 style="color: #d9534f; margin-top: 0;">☢️ Zona de Peligro (Reset de Fábrica)</h2>
             <p style="color: var(--text-main);">Esta acción eliminará <strong>TODOS</strong> los cerebros entrenados y <strong>TODOS</strong> los documentos de entrenamiento del sistema. La IA volverá al estado inicial sin ningún conocimiento.</p>
             <form method="POST" action="/superadmin/borrar_todo" onsubmit="return confirm('☢️ ATENCIÓN MÁXIMA ☢️\n\n¿Realmente deseas BORRAR TODO el conocimiento de la IA?\n\nEsto eliminará:\n• Todos los cerebros entrenados\n• Todos los documentos de entrenamiento\n• Todo el historial de aprendizaje\n\nEsta acción es COMPLETAMENTE IRREVERSIBLE.\n\nEscribe CONFIRMAR si realmente deseas continuar.') && prompt('Escribe CONFIRMAR para proceder:') === 'CONFIRMAR';">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button type="submit" class="btn-danger-total">☢️ RESTABLECER TODO A CERO — Borrar Todos los Conocimientos</button>
             </form>
         </div>

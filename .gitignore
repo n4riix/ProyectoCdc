@@ -1,8 +1,10 @@
 # ========================
-# ARCHIVOS DEL SISTEMA Y SO
+# ARCHIVOS DEL SISTEMA E IDEs
 # ========================
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 
 # ========================
 # CACHÉ Y COMPILADOS PYTHON
@@ -17,9 +19,7 @@ __pycache__/
 # ========================
 # El .env NO se sube a Git (cada servidor tiene el suyo localmente)
 .env
-.env.qa
-.env.produccion
-# El .env.example SÍ se sube como plantilla de documentación
+.env.*
 !.env.example
 yes
 yes.pub
@@ -32,9 +32,31 @@ yes.pub
 *.sqlite3
 *.db
 *.log
+*logs.txt
 
 # ========================
 # VOLUMEN COMPARTIDO DE DOCKER
 # ========================
 # No subimos el volumen porque ahí están los documentos reales del banco y los cerebros pesados.
 volumen_compartido/
+
+# ========================
+# EMPAQUETADOS Y EXPORTACIONES
+# ========================
+*.tar
+*.tar.gz
+*.zip
+
+# ========================
+# SCRIPTS LOCALES Y DE DESPLIEGUE (No requeridos por el programa)
+# ========================
+crear_volumenes.sh
+empaquetar_para_produccion.sh
+update_compose.sh
+setup_prod_ssh.py
+check_ssh.py
+run_ssh.exp
+run_qa_ssh.exp
+run_qa_ssh.py
+conector.sh
+test.txt

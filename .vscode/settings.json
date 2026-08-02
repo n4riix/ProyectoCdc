@@ -1,7 +1,0 @@
-{
-    "chat.tools.terminal.autoApprove": {
-        "sshpass": true,
-        "ssh": true,
-        "20p\\\"": true
-    }
-}

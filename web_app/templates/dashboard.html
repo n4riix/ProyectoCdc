@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Dashboard CDC - Intexus</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo_banco.css') }}">
 </head>
@@ -167,6 +168,7 @@
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     
     <script>
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         const modelosConocidos = {{ modelos_conocidos | tojson | safe if modelos_conocidos else '{}' }};
         const btnAuditar = document.getElementById('btn-auditar');
         const panelResultados = document.getElementById('panel-resultados');
@@ -400,7 +402,7 @@
             
             fetch(`/api/aplicar_correcciones/${currentTaskId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
                 body: JSON.stringify({ correcciones: correccionesAprobadas })
             })
             .then(res => res.json())
@@ -468,7 +470,7 @@
             modalAuditoria.style.display = 'block';
             ultimoArchivo = "";
 
-            fetch('/api/auditar_lote', { method: 'POST' })
+            fetch('/api/auditar_lote', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
             .then(res => res.json())
             .then(data => {
                 if(data.error) {
@@ -536,7 +538,7 @@
             ultimoArchivo = "";
             currentTaskId = taskId;
 
-            fetch(`/api/reanudar_lote/${taskId}`, { method: 'POST' })
+            fetch(`/api/reanudar_lote/${taskId}`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
             .then(res => res.json())
             .then(data => {
                 agregarLog(`> Lote conectado (ID: ${taskId}).`, "#888");

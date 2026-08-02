@@ -134,7 +134,7 @@ services:
       - ./web_app:/app
       - ./volumen_compartido:/volumen_compartido
       - ./volumen_compartido/paddle_modelos:/home/appuser/.paddleocr
-    command: celery -A celery_app.celery worker --loglevel=info
+    command: celery -A celery_app.celery worker --loglevel=info --max-tasks-per-child=50
     restart: unless-stopped
     depends_on:
       redis:

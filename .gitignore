@@ -50,6 +50,7 @@ volumen_compartido/
 # ========================
 # SCRIPTS LOCALES Y DE DESPLIEGUE (No requeridos por el programa)
 # ========================
+backup_bd.sh
 crear_volumenes.sh
 empaquetar_para_produccion.sh
 update_compose.sh

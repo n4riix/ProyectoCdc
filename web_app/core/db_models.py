@@ -99,7 +99,8 @@ def inicializar_base_datos():
                 estado TEXT NOT NULL,
                 total_documentos INTEGER DEFAULT 0,
                 documentos_procesados INTEGER DEFAULT 0,
-                errores INTEGER DEFAULT 0
+                errores INTEGER DEFAULT 0,
+                archivo_indice TEXT
             )
         ''')
         cursor.execute('''
@@ -171,7 +172,8 @@ def inicializar_base_datos():
                 estado TEXT NOT NULL,
                 total_documentos INTEGER DEFAULT 0,
                 documentos_procesados INTEGER DEFAULT 0,
-                errores INTEGER DEFAULT 0
+                errores INTEGER DEFAULT 0,
+                archivo_indice TEXT
             )
         ''')
         cursor.execute('''
@@ -194,6 +196,9 @@ def inicializar_base_datos():
         except: pass
         try:
             cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN confianza REAL DEFAULT 100.0")
+        except: pass
+        try:
+            cursor.execute("ALTER TABLE auditorias_lotes ADD COLUMN archivo_indice TEXT")
         except: pass
 
     # Inyección de usuarios maestros
@@ -306,11 +311,11 @@ def eliminar_usuario(user_id, usuario_actual):
     finally:
         conn.close()
 
-def crear_lote_auditoria(task_id, total_documentos):
+def crear_lote_auditoria(task_id, total_documentos, archivo_indice=None):
     conn = obtener_conexion()
     cursor = obtener_cursor(conn)
     try:
-        execute_query(cursor, "INSERT INTO auditorias_lotes (id, estado, total_documentos) VALUES (?, ?, ?)", (task_id, 'procesando', total_documentos))
+        execute_query(cursor, "INSERT INTO auditorias_lotes (id, estado, total_documentos, archivo_indice) VALUES (?, ?, ?, ?)", (task_id, 'procesando', total_documentos, archivo_indice))
         conn.commit()
     except Exception as e:
         print(f"Error lote: {e}")

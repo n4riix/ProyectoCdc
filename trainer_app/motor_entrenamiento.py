@@ -186,7 +186,7 @@ def entrenar_plataforma_completa(callback_progreso=None):
 
                 if len(clases_unicas) > 1:
                     print(f"🧠 [Matemáticas] Re-calculando vectores estadísticos para {matriz} -> {subproceso}...")
-                    modelo = LogisticRegression(max_iter=1000, random_state=42)
+                    modelo = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
                 else:
                     print(f"⚠️ [{matriz}-{subproceso}] Solo una clase detectada ({clases_unicas[0]}). Generando un modelo de DummyClassifier de clase única.")
                     modelo = DummyClassifier(strategy='most_frequent')

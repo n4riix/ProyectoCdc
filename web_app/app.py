@@ -231,11 +231,18 @@ def api_aplicar_correcciones(task_id):
     with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
         lineas = f.readlines()
     
+    import shutil
+    import time
+    from werkzeug.utils import secure_filename
+    
     # Crear un diccionario de correcciones aprobadas {linea: nuevo_valor}
     mapa_correcciones = {int(c['linea_indice']): c['nuevo_valor'] for c in correcciones_aprobadas}
     
     # Aplicar los cambios
     cambios_aplicados = 0
+    imagenes_copiadas = 0
+    dataset_base = '/volumen_compartido/dataset_entrenamiento'
+    
     for num_linea, nuevo_valor in mapa_correcciones.items():
         if 1 <= num_linea <= len(lineas):
             linea_original = lineas[num_linea - 1]
@@ -243,6 +250,28 @@ def api_aplicar_correcciones(task_id):
             reader = csv.reader(io.StringIO(linea_original))
             for partes in reader:
                 if len(partes) >= 16:
+                    # Copiar la imagen al dataset de entrenamiento para aprendizaje continuo
+                    archivo_imagen = partes[15].strip()
+                    matriz = partes[13].strip().upper()[:2]
+                    subproceso = partes[8].strip().upper()
+                    nuevo_valor_seguro = secure_filename(nuevo_valor).replace("_", " ")
+                    
+                    if not (archivo_imagen.lower().endswith('.tif') or archivo_imagen.lower().endswith('.pdf') or archivo_imagen.lower().endswith('.jpg')):
+                        archivo_imagen += '.TIF'
+                        
+                    ruta_origen = os.path.join(lote_dir, archivo_imagen)
+                        
+                    if os.path.exists(ruta_origen):
+                        ruta_destino_dir = os.path.join(dataset_base, matriz, subproceso, nuevo_valor_seguro)
+                        os.makedirs(ruta_destino_dir, exist_ok=True)
+                        ruta_destino = os.path.join(ruta_destino_dir, f"{int(time.time())}_{archivo_imagen}")
+                        try:
+                            if not os.path.exists(ruta_destino):
+                                shutil.copy2(ruta_origen, ruta_destino)
+                                imagenes_copiadas += 1
+                        except Exception as e:
+                            logging.error(f"Error copiando {ruta_origen} a {ruta_destino}: {e}")
+                            
                     partes[14] = nuevo_valor
                     # Reconstruimos la línea
                     output_line = io.StringIO()
@@ -254,6 +283,23 @@ def api_aplicar_correcciones(task_id):
     # Escribir de vuelta
     with open(indice_path, 'w', encoding='utf-8', newline='') as f:
         f.writelines(lineas)
+        
+    # Verificar umbral de reentrenamiento
+    try:
+        if imagenes_copiadas > 0:
+            total_nuevos = 0
+            for root, dirs, files in os.walk(dataset_base):
+                # Saltar la bóveda histórica
+                if 'processed' in root.split(os.sep): 
+                    continue
+                total_nuevos += len([f for f in files if not f.endswith('.txt')])
+                
+            if total_nuevos >= 25:
+                set_estado('progreso_entrenamiento', '0')
+                set_estado('entrenamiento', 'PROCESANDO')
+                logging.info(f"🚀 ¡Umbral alcanzado ({total_nuevos} archivos)! Disparando reentrenamiento automático.")
+    except Exception as e:
+        logging.error(f"Error comprobando umbral: {e}")
     
     logging.info(f"[AUDITOR] {session['usuario']} aplicó {cambios_aplicados} correcciones al índice.")
     return jsonify({"mensaje": f"Se aplicaron {cambios_aplicados} correcciones al archivo índice.", "cambios": cambios_aplicados})

@@ -43,6 +43,10 @@
             <p id="texto-estado">Procesando documentos...</p>
             <p id="texto-tiempo" style="font-size: 13px; color: var(--text-muted);"></p>
             
+            <div id="info-corte" style="margin-bottom: 15px; font-weight: bold; background-color: var(--bg-secondary); padding: 10px; border-radius: 5px; display: none;">
+                Corte: <span id="corte-numero">-</span> | Fecha: <span id="corte-fecha">-</span>
+            </div>
+            
             <!-- Botones de acción post-auditoría -->
             <div id="botones-post" style="display: none; margin-bottom: 15px;">
                 <button id="btn-descargar-csv" class="btn btn-primary" style="margin-right: 10px;">📥 Descargar Reporte CSV</button>
@@ -222,6 +226,20 @@
                 
                 // Mostrar botones de acción
                 botonesPost.style.display = 'block';
+                
+                // Mostrar info de corte
+                if (data.lote && data.lote.archivo_indice) {
+                    let partes = data.lote.archivo_indice.split('|');
+                    if (partes.length === 2) {
+                        document.getElementById('corte-numero').innerText = partes[0];
+                        document.getElementById('corte-fecha').innerText = partes[1];
+                        document.getElementById('info-corte').style.display = 'block';
+                    } else {
+                        document.getElementById('info-corte').style.display = 'none';
+                    }
+                } else {
+                    document.getElementById('info-corte').style.display = 'none';
+                }
                 
                 // Pintamos la tabla
                 let hayDiscrepancias = false;

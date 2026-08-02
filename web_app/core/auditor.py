@@ -38,7 +38,19 @@ def procesar_lote_kofax_task(self, task_id_str):
             reader = csv.reader(f)
             total_lineas = sum(1 for row in reader if row and len(row) >= 16)
 
-        crear_lote_auditoria(task_id_str, total_lineas)
+        indice_nombre = os.path.basename(indice_path)
+        import re
+        match = re.search(r'_(\d{8})_(\d+)', indice_nombre)
+        if match:
+            f_str = match.group(1)
+            corte = str(int(match.group(2)))
+            fecha = f"{f_str[6:8]}/{f_str[4:6]}/{f_str[0:4]}"
+        else:
+            fecha = datetime.fromtimestamp(os.path.getmtime(indice_path)).strftime('%d/%m/%Y')
+            corte = indice_nombre.replace('Indice_', '').replace('.txt', '')
+            
+        info_corte = f"{corte}|{fecha}"
+        crear_lote_auditoria(task_id_str, total_lineas, info_corte)
         
         # Obtener las líneas ya procesadas por si es una reanudación
         from .db_models import obtener_lineas_procesadas

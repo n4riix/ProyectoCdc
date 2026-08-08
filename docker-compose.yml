@@ -70,6 +70,7 @@ services:
     build:
       context: ./trainer_app
     container_name: cdc_trainer
+    user: "root"
     environment:
       - PYTHONUNBUFFERED=1
       - SECRET_KEY=${SECRET_KEY:-intexus_key}

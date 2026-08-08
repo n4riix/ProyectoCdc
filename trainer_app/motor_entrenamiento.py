@@ -159,6 +159,7 @@ def entrenar_plataforma_completa(callback_progreso=None):
 
                     todos_los_archivos = glob.glob(os.path.join(ruta_clase, "*.*"))
                     archivos_imagenes = [f for f in todos_los_archivos if not f.endswith('.txt')]
+                    archivos_txt_huerfanos = [f for f in todos_los_archivos if f.endswith('.txt') and f[:-4] not in archivos_imagenes]
 
                     for archivo in archivos_imagenes:
                         if ruta_base == ruta_subproceso:
@@ -170,6 +171,17 @@ def entrenar_plataforma_completa(callback_progreso=None):
                         if txt:
                             textos.append(txt)
                             etiquetas.append(clase)
+                            
+                    for txt_file in archivos_txt_huerfanos:
+                        # Son conocimientos importados que solo tienen el caché de texto sin la imagen
+                        try:
+                            with open(txt_file, 'r', encoding='utf-8') as f:
+                                txt_contenido = f.read().strip()
+                                if txt_contenido:
+                                    textos.append(txt_contenido)
+                                    etiquetas.append(clase)
+                        except Exception as e:
+                            print(f"Error leyendo caché huérfano {txt_file}: {e}")
                             
                 clases_procesadas += 1
                 if callback_progreso and total_clases > 0:

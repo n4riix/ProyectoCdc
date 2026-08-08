@@ -416,6 +416,7 @@ def entrenar_modelos():
     return jsonify({"mensaje": "Orden enviada correctamente"})
 
 @app.route('/admin/estado_entrenamiento')
+@limiter.exempt
 @login_requerido
 def estado_entrenamiento():
     estado = get_estado('entrenamiento', 'listo').lower()
@@ -641,9 +642,9 @@ def borrar_clase():
     if session['rol'] != 'superadmin':
         flash("Acceso denegado.", "danger")
         return redirect(url_for('dashboard'))
-    matriz = secure_filename(request.form.get('matriz', '').strip())
-    proceso = secure_filename(request.form.get('proceso', '').strip())
-    clase = secure_filename(request.form.get('clase', '').strip())
+    matriz = request.form.get('matriz', '').strip().replace('/', '').replace('\\', '').replace('..', '')
+    proceso = request.form.get('proceso', '').strip().replace('/', '').replace('\\', '').replace('..', '')
+    clase = request.form.get('clase', '').strip().replace('/', '').replace('\\', '').replace('..', '')
     if not matriz or not proceso or not clase:
         flash("Parámetros inválidos.", "danger")
         return redirect(request.referrer or url_for('superadmin'))
@@ -663,9 +664,9 @@ def descartar_clase():
         flash("Acceso denegado.", "danger")
         return redirect(url_for('dashboard'))
         
-    matriz = secure_filename(request.form.get('matriz', '').strip())
-    proceso = secure_filename(request.form.get('proceso', '').strip())
-    clase = secure_filename(request.form.get('clase', '').strip())
+    matriz = request.form.get('matriz', '').strip().replace('/', '').replace('\\', '').replace('..', '')
+    proceso = request.form.get('proceso', '').strip().replace('/', '').replace('\\', '').replace('..', '')
+    clase = request.form.get('clase', '').strip().replace('/', '').replace('\\', '').replace('..', '')
     
     if not matriz or not proceso or not clase:
         flash("Parámetros inválidos.", "danger")

@@ -105,7 +105,10 @@
         <div class="modal-content card" style="margin: 3% auto; padding: 25px; width: 85%; max-height: 90vh; overflow-y: auto; border-top: 4px solid #d9534f; border-radius: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="margin-top: 0; color: #d9534f;">🔍 Revisión de Discrepancias</h3>
-                <span id="disc-contador" style="font-size: 14px; color: var(--text-muted);">0 / 0</span>
+                <div>
+                    <span id="disc-contador" style="font-size: 14px; color: var(--text-muted); margin-right: 15px;">0 / 0</span>
+                    <button id="btn-cerrar-modal-disc-x" style="background: none; border: none; font-size: 24px; color: #aaa; cursor: pointer; line-height: 1;">&times;</button>
+                </div>
             </div>
             <p style="font-size: 13px;">Revisa cada discrepancia. Puedes <strong>aprobar</strong> la corrección de la IA o <strong>rechazarla</strong> para mantener el valor original.</p>
 
@@ -141,9 +144,14 @@
                         </div>
                     </div>
                     
+                    <div style="margin-top: 15px; display: flex; justify-content: space-between; gap: 10px;">
+                        <button id="btn-disc-anterior" class="btn" style="flex: 1; background-color: #333; color: white; border: none;">&laquo; Anterior</button>
+                        <button id="btn-disc-siguiente" class="btn" style="flex: 1; background-color: #333; color: white; border: none;">Siguiente &raquo;</button>
+                    </div>
+
                     <div style="margin-top: 15px; text-align: center;">
-                        <button id="btn-aplicar-todas" class="btn btn-success" style="display: none; width: 100%; font-size: 16px;">✍️ Aplicar Correcciones Aprobadas al Índice</button>
-                        <button id="btn-cerrar-disc" class="btn btn-primary" style="display: none; width: 100%; margin-top: 8px;">Cerrar sin aplicar</button>
+                        <button id="btn-aplicar-todas" class="btn btn-success" style="width: 100%; font-size: 16px;">✍️ Aplicar Correcciones Aprobadas al Índice</button>
+                        <button id="btn-cerrar-disc" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Cerrar sin aplicar</button>
                     </div>
                 </div>
             </div>
@@ -251,7 +259,7 @@
         // --- REVISIÓN DE DISCREPANCIAS ---
         let discrepancias = [];
         let discIndice = 0;
-        let correccionesAprobadas = [];
+        let correccionesAprobadasMap = {};
 
         document.getElementById('btn-revisar-discrepancias').addEventListener('click', () => {
             if (!currentTaskId) return;
@@ -261,7 +269,7 @@
             .then(data => {
                 discrepancias = data.discrepancias;
                 discIndice = 0;
-                correccionesAprobadas = [];
+                correccionesAprobadasMap = {};
                 
                 if (discrepancias.length === 0) {
                     alert('No hay discrepancias para revisar.');
@@ -269,8 +277,6 @@
                 }
                 
                 document.getElementById('modal-discrepancias').style.display = 'block';
-                document.getElementById('btn-aplicar-todas').style.display = 'none';
-                document.getElementById('btn-cerrar-disc').style.display = 'none';
                 mostrarDiscrepancia(0);
             });
         });
@@ -311,37 +317,54 @@
             img.onload = () => { img.style.display = 'block'; placeholder.style.display = 'none'; };
             img.onerror = () => { placeholder.innerText = 'No se pudo cargar la imagen.'; img.style.display = 'none'; };
             img.src = `/api/imagen/${d.archivo}`;
+            // Marcar visualmente si ya fue aprobada/rechazada
+            const btnAprobar = document.getElementById('btn-aprobar-disc');
+            const btnRechazar = document.getElementById('btn-rechazar-disc');
+            
+            btnAprobar.style.opacity = '1';
+            btnRechazar.style.opacity = '1';
+            btnAprobar.innerText = '✅ Aprobar corrección IA';
+            btnRechazar.innerText = '❌ Mantener original';
+
+            if (correccionesAprobadasMap[d.linea_indice] !== undefined) {
+                if (correccionesAprobadasMap[d.linea_indice] === d.prediccion) {
+                    btnAprobar.innerText = '✅ APROBADO';
+                    btnRechazar.style.opacity = '0.5';
+                } else if (correccionesAprobadasMap[d.linea_indice] === d.esperado) {
+                    btnRechazar.innerText = '❌ RECHAZADO';
+                    btnAprobar.style.opacity = '0.5';
+                } else {
+                    // Forzado manual
+                    btnAprobar.innerText = '✅ APROBADO (Manual)';
+                }
+            }
+
+            // Habilitar/deshabilitar botones anterior/siguiente
+            document.getElementById('btn-disc-anterior').disabled = (idx === 0);
+            document.getElementById('btn-disc-siguiente').disabled = (idx === discrepancias.length - 1);
+            document.getElementById('btn-disc-anterior').style.opacity = (idx === 0) ? '0.5' : '1';
+            document.getElementById('btn-disc-siguiente').style.opacity = (idx === discrepancias.length - 1) ? '0.5' : '1';
         }
 
         function avanzarDiscrepancia() {
-            discIndice++;
-            if (discIndice < discrepancias.length) {
+            if (discIndice < discrepancias.length - 1) {
+                discIndice++;
                 mostrarDiscrepancia(discIndice);
-            } else {
-                // Se terminaron las discrepancias
-                document.getElementById('btn-aprobar-disc').style.display = 'none';
-                document.getElementById('btn-rechazar-disc').style.display = 'none';
-                document.getElementById('disc-contador').innerText = `✅ Revisión completada`;
-                document.getElementById('btn-aplicar-todas').style.display = 'block';
-                document.getElementById('btn-cerrar-disc').style.display = 'block';
-                
-                if (correccionesAprobadas.length === 0) {
-                    document.getElementById('btn-aplicar-todas').style.display = 'none';
-                    document.getElementById('disc-contador').innerText = `No se aprobaron correcciones.`;
-                } else {
-                    document.getElementById('btn-aplicar-todas').innerText = `✍️ Aplicar ${correccionesAprobadas.length} Correcciones al Índice`;
-                }
             }
         }
 
         document.getElementById('btn-aprobar-disc').addEventListener('click', () => {
             const d = discrepancias[discIndice];
-            correccionesAprobadas.push({ linea_indice: d.linea_indice, nuevo_valor: d.prediccion });
+            correccionesAprobadasMap[d.linea_indice] = d.prediccion;
             avanzarDiscrepancia();
+            actualizarBotonAplicar();
         });
 
         document.getElementById('btn-rechazar-disc').addEventListener('click', () => {
+            const d = discrepancias[discIndice];
+            correccionesAprobadasMap[d.linea_indice] = d.esperado; // Mantener original
             avanzarDiscrepancia();
+            actualizarBotonAplicar();
         });
 
         document.getElementById('btn-forzar-disc').addEventListener('click', () => {
@@ -349,18 +372,47 @@
             const selectClase = document.getElementById('disc-select-clase');
             const nuevoValor = selectClase.value;
             if(nuevoValor) {
-                correccionesAprobadas.push({ linea_indice: d.linea_indice, nuevo_valor: nuevoValor });
+                correccionesAprobadasMap[d.linea_indice] = nuevoValor;
             }
             avanzarDiscrepancia();
+            actualizarBotonAplicar();
+        });
+        
+        document.getElementById('btn-disc-anterior').addEventListener('click', () => {
+            if (discIndice > 0) {
+                discIndice--;
+                mostrarDiscrepancia(discIndice);
+            }
         });
 
+        document.getElementById('btn-disc-siguiente').addEventListener('click', () => {
+            if (discIndice < discrepancias.length - 1) {
+                discIndice++;
+                mostrarDiscrepancia(discIndice);
+            }
+        });
+
+        function actualizarBotonAplicar() {
+            const count = Object.keys(correccionesAprobadasMap).length;
+            const btn = document.getElementById('btn-aplicar-todas');
+            if(count > 0) {
+                btn.innerText = `✍️ Aplicar ${count} Correcciones Aprobadas`;
+            }
+        }
+
         document.getElementById('btn-aplicar-todas').addEventListener('click', () => {
-            if (correccionesAprobadas.length === 0) return;
+            const keys = Object.keys(correccionesAprobadasMap);
+            if (keys.length === 0) {
+                alert("No has aprobado ni forzado ninguna corrección.");
+                return;
+            }
+            
+            const correccionesArray = keys.map(k => ({ linea_indice: k, nuevo_valor: correccionesAprobadasMap[k] }));
             
             fetch(`/api/aplicar_correcciones/${currentTaskId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ correcciones: correccionesAprobadas })
+                body: JSON.stringify({ correcciones: correccionesArray })
             })
             .then(res => res.json())
             .then(data => {
@@ -370,6 +422,10 @@
         });
 
         document.getElementById('btn-cerrar-disc').addEventListener('click', () => {
+            document.getElementById('modal-discrepancias').style.display = 'none';
+        });
+
+        document.getElementById('btn-cerrar-modal-disc-x').addEventListener('click', () => {
             document.getElementById('modal-discrepancias').style.display = 'none';
         });
 

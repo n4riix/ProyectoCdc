@@ -18,7 +18,7 @@ def obtener_conexion():
             port=os.environ.get('DB_PORT', '5432')
         )
     else:
-        return sqlite3.connect(DB_PATH)
+        return sqlite3.connect(DB_PATH, timeout=30.0)
 
 def get_estado():
     if not is_postgres and not os.path.exists(DB_PATH):

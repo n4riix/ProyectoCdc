@@ -125,6 +125,7 @@ from core.db_models import obtener_estado_lote, obtener_resultados_lote, listar_
 import uuid
 
 @app.route('/api/estado_auditoria/<task_id>', methods=['GET'])
+@limiter.exempt
 @login_requerido
 def api_estado_auditoria(task_id):
     estado = obtener_estado_lote(task_id)

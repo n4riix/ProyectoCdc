@@ -85,19 +85,19 @@ def procesar_lote_kofax_task(self, task_id_str):
 
                 if matriz != 'BT':
                     procesados += 1
-                    if procesados % 10 == 0: actualizar_progreso_lote(task_id_str, procesados)
+                    if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                     continue
                 
                 if matriz not in modelos_conocidos or subproceso not in modelos_conocidos[matriz]:
                     procesados += 1
-                    if procesados % 10 == 0: actualizar_progreso_lote(task_id_str, procesados)
+                    if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                     continue
                 
                 tipo_esperado = partes[14].strip()
                 clases_conocidas = modelos_conocidos[matriz][subproceso].get('clases', [])
                 if tipo_esperado not in clases_conocidas:
                     procesados += 1
-                    if procesados % 10 == 0: actualizar_progreso_lote(task_id_str, procesados)
+                    if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                     continue
 
                 archivo = partes[15].strip()
@@ -113,7 +113,7 @@ def procesar_lote_kofax_task(self, task_id_str):
                 if not os.path.exists(ruta_imagen):
                     guardar_resultado_auditoria(task_id_str, numero_linea, archivo, matriz, subproceso, tipo_esperado, "ARCHIVO FÍSICO NO ENCONTRADO", "danger")
                     procesados += 1
-                    actualizar_progreso_lote(task_id_str, procesados)
+                    if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                     continue
 
                 # 1. Visión Artificial
@@ -141,16 +141,16 @@ def procesar_lote_kofax_task(self, task_id_str):
                 guardar_resultado_auditoria(task_id_str, numero_linea, archivo, matriz, subproceso, tipo_esperado, prediccion, estado, confianza_pct)
                 
                 procesados += 1
-                actualizar_progreso_lote(task_id_str, procesados)
+                if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                 
                 llamadas_ocr_chunk += 1
                 if llamadas_ocr_chunk >= 100:
                     logging.warning(f"🔄 [Chunk Limit] 100 imágenes procesadas. Terminando tarea para forzar al OS a liberar RAM...")
-                    # Volvemos a lanzar la misma tarea. Como usamos el mismo ID y la DB guarda el progreso,
-                    # la nueva tarea saltará automáticamente los procesados y continuará.
+                    actualizar_progreso_lote(task_id_str, procesados)
                     procesar_lote_kofax_task.apply_async(args=[task_id_str], task_id=task_id_str, countdown=2)
                     return {"status": "Chunk Completado. Re-encolando...", "total": procesados}
 
+        actualizar_progreso_lote(task_id_str, procesados)
         completar_lote_auditoria(task_id_str, 'completado')
         return {"status": "Completado", "total": procesados}
     except Exception as e:

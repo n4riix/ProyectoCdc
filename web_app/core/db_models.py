@@ -342,7 +342,12 @@ def crear_lote_auditoria(task_id, total_documentos, archivo_indice=None):
     conn = obtener_conexion()
     cursor = obtener_cursor(conn)
     try:
-        execute_query(cursor, "INSERT INTO auditorias_lotes (id, estado, total_documentos, archivo_indice) VALUES (?, ?, ?, ?)", (task_id, 'procesando', total_documentos, archivo_indice))
+        if is_postgres:
+            query = "INSERT INTO auditorias_lotes (id, estado, total_documentos, archivo_indice) VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING"
+        else:
+            query = "INSERT OR IGNORE INTO auditorias_lotes (id, estado, total_documentos, archivo_indice) VALUES (?, ?, ?, ?)"
+        
+        execute_query(cursor, query, (task_id, 'procesando', total_documentos, archivo_indice))
         conn.commit()
     except Exception as e:
         print(f"Error lote: {e}")

@@ -25,8 +25,8 @@ class MotorOCR:
         self.contador_llamadas += 1
         
         # PREVENCIÓN DE MEMORY LEAK (OOM) AGRESIVA:
-        # Reducido de 500 a 50 para asegurar que nunca supere los 4GB de límite.
-        if self.contador_llamadas % 50 == 0:
+        # Reducido de 500 a 100 para balancear uso de memoria RAM (IT Request)
+        if self.contador_llamadas % 100 == 0:
             print(f"♻️ [Anti-Memory Leak] Reiniciando motor OCR en la llamada {self.contador_llamadas} para liberar RAM...")
             del self.ocr
             gc.collect()

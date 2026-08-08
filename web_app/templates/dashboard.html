@@ -54,23 +54,7 @@
                 <button id="btn-revisar-discrepancias" class="btn btn-success" style="background-color: #d9534f;">🔍 Revisar Discrepancias</button>
             </div>
             
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; margin-top: 15px; text-align: left;">
-                    <thead>
-                        <tr style="background-color: var(--input-bg); border-bottom: 2px solid var(--input-border);">
-                            <th style="padding: 10px;">Línea</th>
-                            <th style="padding: 10px;">Archivo</th>
-                            <th style="padding: 10px;">Ruta (Matriz-Proc)</th>
-                            <th style="padding: 10px;">Operador Cdc dijo:</th>
-                            <th style="padding: 10px;">IA Detectó:</th>
-                            <th style="padding: 10px;">Confianza</th>
-                            <th style="padding: 10px;">Veredicto</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-cuerpo">
-                    </tbody>
-                </table>
-            </div>
+            <!-- La tabla de resultados en vivo fue eliminada para optimizar rendimiento masivo -->
         </div>
     </div>
 
@@ -172,7 +156,6 @@
         const modelosConocidos = {{ modelos_conocidos | tojson | safe if modelos_conocidos else '{}' }};
         const btnAuditar = document.getElementById('btn-auditar');
         const panelResultados = document.getElementById('panel-resultados');
-        const tablaCuerpo = document.getElementById('tabla-cuerpo');
         const textoEstado = document.getElementById('texto-estado');
         const textoTiempo = document.getElementById('texto-tiempo');
         const botonesPost = document.getElementById('botones-post');
@@ -210,7 +193,6 @@
             .then(data => {
                 panelResultados.style.display = 'block';
                 textoEstado.innerHTML = `✅ Auditoría completada. Se revisaron ${data.resultados.length} documentos.`;
-                tablaCuerpo.innerHTML = '';
                 
                 // Mostrar tiempos
                 if (data.lote) {
@@ -243,38 +225,12 @@
                     document.getElementById('info-corte').style.display = 'none';
                 }
                 
-                // Pintamos la tabla
+                // Determinamos si hay discrepancias sin renderizar toda la tabla
                 let hayDiscrepancias = false;
                 data.resultados.forEach(item => {
-                    let colorFila = '';
-                    let iconoVeredicto = '';
-                    
-                    if (item.estado === 'success') {
-                        colorFila = 'rgba(92, 184, 92, 0.1)';
-                        iconoVeredicto = '✅ COINCIDE';
-                    } else if (item.estado === 'warning') {
-                        colorFila = 'rgba(240, 173, 78, 0.1)';
-                        iconoVeredicto = '⚠️ NO ENTRENADO';
-                    } else {
-                        colorFila = 'rgba(217, 83, 79, 0.1)';
-                        iconoVeredicto = '❌ DISCREPANCIA';
+                    if (item.estado !== 'success' && item.estado !== 'warning') {
                         hayDiscrepancias = true;
                     }
-
-                    const lineaNum = item.linea_indice || '-';
-                    const confNum = item.confianza != null ? parseFloat(item.confianza).toFixed(1) + '%' : '-';
-                    const filaHTML = `
-                        <tr style="border-bottom: 1px solid var(--input-border); background-color: ${colorFila};">
-                            <td style="padding: 10px; font-weight: bold;">${lineaNum}</td>
-                            <td style="padding: 10px;"><strong>${item.archivo}</strong></td>
-                            <td style="padding: 10px;">${item.matriz} - ${item.subproceso}</td>
-                            <td style="padding: 10px;">${item.esperado}</td>
-                            <td style="padding: 10px; font-weight: bold;">${item.prediccion}</td>
-                            <td style="padding: 10px;">${confNum}</td>
-                            <td style="padding: 10px;">${iconoVeredicto}</td>
-                        </tr>
-                    `;
-                    tablaCuerpo.innerHTML += filaHTML;
                 });
                 
                 // Ocultar botón de discrepancias si no hay
@@ -452,14 +408,13 @@
                     }
                 })
                 .catch(e => console.log("Polling error:", e));
-            }, 2000);
+            }, 5000);
         }
 
         // --- LANZAR AUDITORÍA ---
         btnAuditar.addEventListener('click', () => {
             panelResultados.style.display = 'none';
             botonesPost.style.display = 'none';
-            tablaCuerpo.innerHTML = '';
             textoEstado.innerHTML = 'Esperando resultados...';
             textoTiempo.innerHTML = '';
             btnAuditar.disabled = true;
@@ -528,7 +483,6 @@
             modalHistorial.style.display = 'none';
             panelResultados.style.display = 'none';
             botonesPost.style.display = 'none';
-            tablaCuerpo.innerHTML = '';
             textoEstado.innerHTML = 'Reanudando y Reconectando...';
             btnAuditar.disabled = true;
             btnAuditar.innerText = '⏳ Auditando... (Puedes cerrar esta ventana)';

@@ -60,13 +60,13 @@
                                         {% for c in clases %}
                                             <span class="chip" style="display:inline-flex; align-items:center;">
                                                 {{ c }}
-                                                {% if rol == 'superadmin' %}
-                                                <form action="/superadmin/borrar_clase" method="POST" style="margin:0; padding:0; margin-left:8px;" onsubmit="return confirm('¿Borrar la clase {{c}} y todos sus datos de entrenamiento asociados?');">
+                                                {% if rol in ['admin', 'superadmin'] %}
+                                                <form action="/admin/descartar_clase" method="POST" style="margin:0; padding:0; margin-left:8px;" onsubmit="return confirm('¿Descartar los archivos subidos para la clase {{c}}? (No afectará a lo que la IA ya aprendió)');">
                                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                     <input type="hidden" name="matriz" value="{{ matriz }}">
                                                     <input type="hidden" name="proceso" value="{{ subproceso }}">
                                                     <input type="hidden" name="clase" value="{{ c }}">
-                                                    <button type="submit" style="background:none; border:none; color:rgba(255,0,0,0.6); font-weight:bold; font-size:14px; cursor:pointer; padding:0; line-height:1;" title="Eliminar clase">✕</button>
+                                                    <button type="submit" style="background:none; border:none; color:rgba(255,0,0,0.6); font-weight:bold; font-size:14px; cursor:pointer; padding:0; line-height:1;" title="Descartar subida">✕</button>
                                                 </form>
                                                 {% endif %}
                                             </span>

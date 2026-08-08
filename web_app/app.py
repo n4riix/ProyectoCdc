@@ -656,6 +656,33 @@ def borrar_clase():
     logging.info(f"[SUPERADMIN] {session['usuario']} borró clase {clase} de {matriz}/{proceso}.")
     return redirect(request.referrer or url_for('superadmin'))
 
+@app.route('/admin/descartar_clase', methods=['POST'])
+@login_requerido
+def descartar_clase():
+    if session['rol'] not in ['admin', 'superadmin']:
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+        
+    matriz = secure_filename(request.form.get('matriz', '').strip())
+    proceso = secure_filename(request.form.get('proceso', '').strip())
+    clase = secure_filename(request.form.get('clase', '').strip())
+    
+    if not matriz or not proceso or not clase:
+        flash("Parámetros inválidos.", "danger")
+        return redirect(request.referrer or url_for('admin'))
+        
+    from web_app.core.inventory import descartar_subida_clase
+    errores = descartar_subida_clase(matriz, proceso, clase)
+    nombre_matriz = 'Natural' if matriz == 'BT' else ('Jurídico' if matriz == 'BR' else matriz)
+    
+    if errores:
+        flash(f"⚠️ Hubo problemas al descartar la clase '{clase}': {'; '.join(errores)}", "warning")
+    else:
+        flash(f"✅ Subida de la clase '{clase}' cancelada y removida del inventario.", "success")
+        
+    logging.info(f"[{session['rol'].upper()}] {session['usuario']} descartó subida de la clase {clase} de {matriz}/{proceso}.")
+    return redirect(request.referrer or url_for('admin'))
+
 @app.route('/superadmin/crear_usuario', methods=['POST'])
 @login_requerido
 def crear_usuario_route():

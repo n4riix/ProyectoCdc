@@ -15,38 +15,26 @@ def extension_permitida(nombre_archivo):
 
 def obtener_inventario_tipos_documentales():
     inventario = {}
-    
     for matriz in ['BT', 'BR']:
         ruta_matriz = os.path.join(DATASET_DIR, matriz)
-        ruta_procesada = os.path.join(DATASET_DIR, 'processed', matriz)
-        
-        # 1. Buscar en datos pendientes
-        if os.path.isdir(ruta_matriz):
-            for subproceso in os.listdir(ruta_matriz):
-                ruta_subproceso = os.path.join(ruta_matriz, subproceso)
-                if os.path.isdir(ruta_subproceso):
-                    clases = [n for n in os.listdir(ruta_subproceso) if os.path.isdir(os.path.join(ruta_subproceso, n))]
-                    if clases:
-                        if subproceso not in inventario.setdefault(matriz, {}):
-                            inventario[matriz][subproceso] = set()
-                        inventario[matriz][subproceso].update(clases)
-                        
-        # 2. Buscar en datos procesados (conocimiento ya entrenado)
-        if os.path.isdir(ruta_procesada):
-            for subproceso in os.listdir(ruta_procesada):
-                ruta_subproceso = os.path.join(ruta_procesada, subproceso)
-                if os.path.isdir(ruta_subproceso):
-                    clases = [n for n in os.listdir(ruta_subproceso) if os.path.isdir(os.path.join(ruta_subproceso, n))]
-                    if clases:
-                        if subproceso not in inventario.setdefault(matriz, {}):
-                            inventario[matriz][subproceso] = set()
-                        inventario[matriz][subproceso].update(clases)
-    
-    # Convertir sets a listas ordenadas
-    for matriz in inventario:
-        for subproceso in inventario[matriz]:
-            inventario[matriz][subproceso] = sorted(list(inventario[matriz][subproceso]))
+        if not os.path.isdir(ruta_matriz):
+            continue
+
+        for subproceso in sorted(os.listdir(ruta_matriz)):
+            ruta_subproceso = os.path.join(ruta_matriz, subproceso)
+            if not os.path.isdir(ruta_subproceso):
+                continue
             
+            # Solo incluir clases que tengan al menos un archivo dentro
+            clases = []
+            for nombre in os.listdir(ruta_subproceso):
+                ruta_clase = os.path.join(ruta_subproceso, nombre)
+                if os.path.isdir(ruta_clase) and len(os.listdir(ruta_clase)) > 0:
+                    clases.append(nombre)
+            
+            if clases:
+                inventario.setdefault(matriz, {})[subproceso] = sorted(clases)
+
     return inventario
 
 
@@ -150,4 +138,16 @@ def borrar_conocimiento_clase(matriz, proceso, clase):
             shutil.rmtree(ruta_cerebro)
         except Exception as e:
             errores.append(f"{ruta_cerebro}: {e}")
+    return errores
+
+def descartar_subida_clase(matriz, proceso, clase):
+    """Descarta los archivos pendientes de una clase específica sin tocar los datos procesados ni los modelos."""
+    import shutil
+    errores = []
+    ruta = os.path.join(DATASET_DIR, matriz, proceso, clase)
+    if os.path.isdir(ruta):
+        try:
+            shutil.rmtree(ruta)
+        except Exception as e:
+            errores.append(f"{ruta}: {e}")
     return errores

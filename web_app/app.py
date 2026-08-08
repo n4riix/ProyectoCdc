@@ -465,15 +465,33 @@ def exportar_ia():
     
     import shutil
     import time
+    import tempfile
     
     base_dir = os.path.dirname(os.path.abspath(__file__))
     ruta_cerebros = os.path.join(base_dir, '..', 'volumen_compartido', 'cerebros_ia')
-    ruta_zip_salida = os.path.join('/tmp', f'cerebros_ia_export_{int(time.time())}')
+    ruta_processed = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_entrenamiento', 'processed')
     
     try:
-        shutil.make_archive(ruta_zip_salida, 'zip', ruta_cerebros)
+        # Crear una carpeta temporal que contenga ambas fuentes de conocimiento
+        tmp_export_dir = os.path.join(tempfile.gettempdir(), f'ia_export_{int(time.time())}')
+        os.makedirs(tmp_export_dir, exist_ok=True)
+        
+        # 1. Copiar los cerebros compilados (modelo.pkl + vectorizador.pkl)
+        if os.path.isdir(ruta_cerebros):
+            shutil.copytree(ruta_cerebros, os.path.join(tmp_export_dir, 'cerebros_ia'))
+        
+        # 2. Copiar los datos históricos de entrenamiento (textos cacheados para reentrenar)
+        if os.path.isdir(ruta_processed):
+            shutil.copytree(ruta_processed, os.path.join(tmp_export_dir, 'processed'))
+        
+        ruta_zip_salida = os.path.join(tempfile.gettempdir(), f'cerebros_ia_export_{int(time.time())}')
+        shutil.make_archive(ruta_zip_salida, 'zip', tmp_export_dir)
         archivo_final = ruta_zip_salida + '.zip'
-        logging.info(f"[SUPERADMIN] {session['usuario']} exportó los conocimientos de la IA.")
+        
+        # Limpiar la carpeta temporal de montaje
+        shutil.rmtree(tmp_export_dir, ignore_errors=True)
+        
+        logging.info(f"[SUPERADMIN] {session['usuario']} exportó los conocimientos de la IA (cerebros + datos históricos).")
         return send_file(archivo_final, as_attachment=True, download_name='Conocimiento_IA_Exportado.zip')
     except Exception as e:
         flash(f"Error al generar exportación: {e}", "danger")
@@ -496,7 +514,9 @@ def importar_ia():
     
     base_dir = os.path.dirname(os.path.abspath(__file__))
     ruta_cerebros = os.path.join(base_dir, '..', 'volumen_compartido', 'cerebros_ia')
+    ruta_processed = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_entrenamiento', 'processed')
     os.makedirs(ruta_cerebros, exist_ok=True)
+    os.makedirs(ruta_processed, exist_ok=True)
     
     try:
         import zipfile
@@ -506,16 +526,75 @@ def importar_ia():
         # Validar el contenido del ZIP para prevenir Path Traversal / Zip Slip
         with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
             for member in zip_ref.namelist():
-                # Evitar rutas absolutas o relativas hacia atrás
                 if member.startswith('/') or '..' in member:
                     raise ValueError(f"Archivo sospechoso en el ZIP (Posible Path Traversal): {member}")
             
-            zip_ref.extractall(ruta_cerebros)
-            
+            # Extraer a carpeta temporal para clasificar el contenido
+            tmp_extract = os.path.join(tempfile.gettempdir(), f'ia_import_{os.getpid()}')
+            zip_ref.extractall(tmp_extract)
+        
         os.remove(tmp_path)
         
-        flash("✅ Modelos de IA importados e instalados correctamente.", "success")
-        logging.info(f"[SUPERADMIN] {session['usuario']} importó un paquete de conocimiento IA.")
+        # Detectar si es el formato nuevo (con subcarpetas cerebros_ia/ y processed/)
+        ruta_cerebros_zip = os.path.join(tmp_extract, 'cerebros_ia')
+        ruta_processed_zip = os.path.join(tmp_extract, 'processed')
+        
+        if os.path.isdir(ruta_cerebros_zip):
+            # FORMATO NUEVO: El ZIP tiene carpetas separadas
+            # 1. Copiar cerebros compilados
+            for item in os.listdir(ruta_cerebros_zip):
+                src = os.path.join(ruta_cerebros_zip, item)
+                dst = os.path.join(ruta_cerebros, item)
+                if os.path.isdir(src):
+                    if os.path.exists(dst):
+                        shutil.rmtree(dst)
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+            
+            # 2. Copiar datos históricos de entrenamiento (para que el reentrenamiento los use)
+            if os.path.isdir(ruta_processed_zip):
+                for item in os.listdir(ruta_processed_zip):
+                    src = os.path.join(ruta_processed_zip, item)
+                    dst = os.path.join(ruta_processed, item)
+                    if os.path.isdir(src):
+                        # Fusionar: si la carpeta ya existe, copiar archivos nuevos sin borrar los existentes
+                        if os.path.exists(dst):
+                            for sub_item in os.listdir(src):
+                                sub_src = os.path.join(src, sub_item)
+                                sub_dst = os.path.join(dst, sub_item)
+                                if os.path.isdir(sub_src):
+                                    if not os.path.exists(sub_dst):
+                                        shutil.copytree(sub_src, sub_dst)
+                                    else:
+                                        # Fusionar archivos individuales dentro de la clase
+                                        for f in os.listdir(sub_src):
+                                            shutil.copy2(os.path.join(sub_src, f), os.path.join(sub_dst, f))
+                                else:
+                                    shutil.copy2(sub_src, sub_dst)
+                        else:
+                            shutil.copytree(src, dst)
+                    else:
+                        shutil.copy2(src, dst)
+                
+                logging.info(f"[IMPORTAR] Datos históricos de entrenamiento restaurados en {ruta_processed}")
+        else:
+            # FORMATO ANTIGUO (retrocompatibilidad): El ZIP solo tenía los .pkl sueltos
+            for item in os.listdir(tmp_extract):
+                src = os.path.join(tmp_extract, item)
+                dst = os.path.join(ruta_cerebros, item)
+                if os.path.isdir(src):
+                    if os.path.exists(dst):
+                        shutil.rmtree(dst)
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+        
+        # Limpiar carpeta temporal de extracción
+        shutil.rmtree(tmp_extract, ignore_errors=True)
+        
+        flash("✅ Modelos de IA importados e instalados correctamente (cerebros + datos históricos).", "success")
+        logging.info(f"[SUPERADMIN] {session['usuario']} importó un paquete de conocimiento IA (formato {'nuevo' if os.path.isdir(ruta_cerebros_zip) else 'legacy'}).")
     except Exception as e:
         flash(f"❌ Error al importar IA: {e}", "danger")
         logging.error(f"Error importando IA: {e}")

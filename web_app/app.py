@@ -13,8 +13,8 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 # --- IMPORTACIONES DE TU NÚCLEO (CORE) ---
-from core.db_models import inicializar_base_datos, verificar_usuario, set_estado, get_estado, listar_usuarios, crear_usuario, eliminar_usuario
-from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida, borrar_todo_el_conocimiento, borrar_conocimiento_proceso, borrar_conocimiento_clase
+from core.db_models import inicializar_base_datos, verificar_usuario, set_estado, get_estado, listar_usuarios, crear_usuario, eliminar_usuario, cambiar_clave_usuario
+from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida, borrar_todo_el_conocimiento, borrar_conocimiento_proceso, borrar_conocimiento_clase, descartar_subida_clase
 
 # ==========================================
 # 1. CONFIGURACIÓN DE CARPETAS Y LOGS
@@ -671,7 +671,6 @@ def descartar_clase():
         flash("Parámetros inválidos.", "danger")
         return redirect(request.referrer or url_for('admin'))
         
-    from web_app.core.inventory import descartar_subida_clase
     errores = descartar_subida_clase(matriz, proceso, clase)
     nombre_matriz = 'Natural' if matriz == 'BT' else ('Jurídico' if matriz == 'BR' else matriz)
     

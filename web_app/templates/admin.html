@@ -20,10 +20,10 @@
             <button class="theme-toggle">🌗</button>
             <span>👤 {{ usuario }} ({{ rol }})</span>
             
+            <a href="/dashboard">🏠 Inicio</a>
             {% if rol == 'superadmin' %}
                 <a href="/superadmin" style="color: #d9534f;">🛡️ Super Admin</a>
             {% endif %}
-            <a href="/dashboard">⬅️ Volver</a>
             <a href="/conocimiento">🧩 Conocimiento IA</a>
             <a href="/logout">🚪 Cerrar Sesión</a>
         </div>
@@ -58,7 +58,18 @@
                                     <td>{{ subproceso }}</td>
                                     <td>
                                         {% for c in clases %}
-                                            <span class="chip">{{ c }}</span>
+                                            <span class="chip" style="display:inline-flex; align-items:center;">
+                                                {{ c }}
+                                                {% if rol == 'superadmin' %}
+                                                <form action="/superadmin/borrar_clase" method="POST" style="margin:0; padding:0; margin-left:8px;" onsubmit="return confirm('¿Borrar la clase {{c}} y todos sus datos de entrenamiento asociados?');">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <input type="hidden" name="matriz" value="{{ matriz }}">
+                                                    <input type="hidden" name="proceso" value="{{ subproceso }}">
+                                                    <input type="hidden" name="clase" value="{{ c }}">
+                                                    <button type="submit" style="background:none; border:none; color:rgba(255,0,0,0.6); font-weight:bold; font-size:14px; cursor:pointer; padding:0; line-height:1;" title="Eliminar clase">✕</button>
+                                                </form>
+                                                {% endif %}
+                                            </span>
                                         {% endfor %}
                                     </td>
                                 </tr>

@@ -211,6 +211,7 @@
                                         {% if u.username == usuario %}
                                             <span style="font-size: 0.9rem; opacity: 0.6; font-style: italic;">Sesión activa</span>
                                         {% else %}
+                                            <button type="button" class="btn-primary" style="padding: 4px 10px; font-size: 0.8rem; background-color: #f0ad4e;" onclick="cambiarClave('{{ u.id }}', '{{ u.username }}')">Clave</button>
                                             <form method="POST" action="/superadmin/eliminar_usuario" style="display:inline;" onsubmit="return confirm('¿Seguro que deseas eliminar el usuario \'{{ u.username }}\'?');">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                                 <input type="hidden" name="user_id" value="{{ u.id }}">

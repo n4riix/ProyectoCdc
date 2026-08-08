@@ -15,25 +15,38 @@ def extension_permitida(nombre_archivo):
 
 def obtener_inventario_tipos_documentales():
     inventario = {}
-
+    
     for matriz in ['BT', 'BR']:
         ruta_matriz = os.path.join(DATASET_DIR, matriz)
-        if not os.path.isdir(ruta_matriz):
-            continue
-
-        for subproceso in sorted(os.listdir(ruta_matriz)):
-            ruta_subproceso = os.path.join(ruta_matriz, subproceso)
-            if not os.path.isdir(ruta_subproceso):
-                continue
-
-            clases = sorted(
-                nombre for nombre in os.listdir(ruta_subproceso)
-                if os.path.isdir(os.path.join(ruta_subproceso, nombre))
-            )
-
-            if clases:
-                inventario.setdefault(matriz, {})[subproceso] = clases
-
+        ruta_procesada = os.path.join(DATASET_DIR, 'processed', matriz)
+        
+        # 1. Buscar en datos pendientes
+        if os.path.isdir(ruta_matriz):
+            for subproceso in os.listdir(ruta_matriz):
+                ruta_subproceso = os.path.join(ruta_matriz, subproceso)
+                if os.path.isdir(ruta_subproceso):
+                    clases = [n for n in os.listdir(ruta_subproceso) if os.path.isdir(os.path.join(ruta_subproceso, n))]
+                    if clases:
+                        if subproceso not in inventario.setdefault(matriz, {}):
+                            inventario[matriz][subproceso] = set()
+                        inventario[matriz][subproceso].update(clases)
+                        
+        # 2. Buscar en datos procesados (conocimiento ya entrenado)
+        if os.path.isdir(ruta_procesada):
+            for subproceso in os.listdir(ruta_procesada):
+                ruta_subproceso = os.path.join(ruta_procesada, subproceso)
+                if os.path.isdir(ruta_subproceso):
+                    clases = [n for n in os.listdir(ruta_subproceso) if os.path.isdir(os.path.join(ruta_subproceso, n))]
+                    if clases:
+                        if subproceso not in inventario.setdefault(matriz, {}):
+                            inventario[matriz][subproceso] = set()
+                        inventario[matriz][subproceso].update(clases)
+    
+    # Convertir sets a listas ordenadas
+    for matriz in inventario:
+        for subproceso in inventario[matriz]:
+            inventario[matriz][subproceso] = sorted(list(inventario[matriz][subproceso]))
+            
     return inventario
 
 

@@ -646,7 +646,7 @@ def borrar_clase():
     clase = secure_filename(request.form.get('clase', '').strip())
     if not matriz or not proceso or not clase:
         flash("Parámetros inválidos.", "danger")
-        return redirect(url_for('superadmin'))
+        return redirect(request.referrer or url_for('superadmin'))
     errores = borrar_conocimiento_clase(matriz, proceso, clase)
     nombre_matriz = 'Natural' if matriz == 'BT' else ('Jurídico' if matriz == 'BR' else matriz)
     if errores:
@@ -654,7 +654,7 @@ def borrar_clase():
     else:
         flash(f"✅ Clase '{clase}' del proceso {proceso} ({nombre_matriz}) eliminada. Recuerda re-entrenar la IA.", "success")
     logging.info(f"[SUPERADMIN] {session['usuario']} borró clase {clase} de {matriz}/{proceso}.")
-    return redirect(url_for('superadmin'))
+    return redirect(request.referrer or url_for('superadmin'))
 
 @app.route('/superadmin/crear_usuario', methods=['POST'])
 @login_requerido
@@ -687,6 +687,25 @@ def eliminar_usuario_route():
     if exito:
         flash(f"✅ {mensaje}", "success")
         logging.info(f"[SUPERADMIN] {session['usuario']} eliminó usuario ID {user_id}.")
+    else:
+        flash(f"❌ {mensaje}", "danger")
+    return redirect(url_for('superadmin'))
+
+@app.route('/superadmin/cambiar_clave', methods=['POST'])
+@login_requerido
+def cambiar_clave_route():
+    if session['rol'] != 'superadmin':
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('dashboard'))
+    user_id = request.form.get('user_id', '').strip()
+    nueva_clave = request.form.get('nueva_clave', '').strip()
+    if not user_id or not nueva_clave:
+        flash("Datos incompletos.", "danger")
+        return redirect(url_for('superadmin'))
+    exito, mensaje = cambiar_clave_usuario(int(user_id), nueva_clave, session['usuario'], session['rol'])
+    if exito:
+        flash(f"✅ {mensaje}", "success")
+        logging.info(f"[SUPERADMIN] {session['usuario']} cambió la clave del usuario ID {user_id}.")
     else:
         flash(f"❌ {mensaje}", "danger")
     return redirect(url_for('superadmin'))

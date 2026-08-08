@@ -338,6 +338,24 @@ def eliminar_usuario(user_id, usuario_actual):
     finally:
         conn.close()
 
+def cambiar_clave_usuario(user_id, nueva_clave, usuario_actual, rol_actual):
+    if rol_actual != 'superadmin': return False, "No autorizado."
+    conn = obtener_conexion()
+    cursor = obtener_cursor(conn)
+    try:
+        execute_query(cursor, "SELECT username FROM usuarios WHERE id = ?", (user_id,))
+        usuario = fetchone_dict(cursor)
+        if not usuario: return False, "Usuario no encontrado."
+        
+        pass_hash = generate_password_hash(nueva_clave)
+        execute_query(cursor, "UPDATE usuarios SET password_hash = ? WHERE id = ?", (pass_hash, user_id))
+        conn.commit()
+        return True, f"Clave del usuario '{usuario['username']}' actualizada."
+    except Exception as e:
+        return False, f"Error: {e}"
+    finally:
+        conn.close()
+
 def crear_lote_auditoria(task_id, total_documentos, archivo_indice=None):
     conn = obtener_conexion()
     cursor = obtener_cursor(conn)

@@ -23,11 +23,14 @@ def procesar_lote_kofax_task(self, task_id_str):
 
         indice_path = archivos_indice[0]
         
-        # 0. Crear un respaldo (backup) del índice original
+        # 0. Crear un respaldo (backup) del índice original en carpeta separada
         import shutil
         from datetime import datetime
+        backup_dir = '/volumen_compartido/backups_indices'
+        os.makedirs(backup_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        indice_backup_path = f"{indice_path}.{timestamp}.bak"
+        indice_nombre_base = os.path.basename(indice_path)
+        indice_backup_path = os.path.join(backup_dir, f"{indice_nombre_base}.{timestamp}.bak")
         # Copiar solo si no existe el backup para esta tarea, aunque al ser por timestamp siempre creará uno nuevo
         shutil.copy2(indice_path, indice_backup_path)
         logging.info(f"Respaldo creado en: {indice_backup_path}")

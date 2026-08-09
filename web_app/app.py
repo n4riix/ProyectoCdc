@@ -255,6 +255,20 @@ def api_aplicar_correcciones(task_id):
     
     indice_path = archivos_indice[0]
     
+    # Crear backup del índice original antes de aplicar las correcciones finales
+    import shutil
+    import time
+    from datetime import datetime
+    from werkzeug.utils import secure_filename
+    
+    backup_dir = '/volumen_compartido/backups_indices'
+    os.makedirs(backup_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    indice_nombre_base = os.path.basename(indice_path)
+    indice_backup_path = os.path.join(backup_dir, f"{indice_nombre_base}.modificado.{timestamp}.bak")
+    shutil.copy2(indice_path, indice_backup_path)
+    logging.info(f"Respaldo pre-correcciones creado en: {indice_backup_path}")
+    
     # Leer todas las líneas del archivo original
     with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
         lineas = f.readlines()

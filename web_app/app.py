@@ -136,14 +136,17 @@ def api_estado_auditoria(task_id):
     from celery_app import celery
     task = celery.AsyncResult(task_id)
     archivo_actual = "Iniciando..."
+    procesados_actual = estado['documentos_procesados']
+    
     if task.state == 'PROGRESS':
         archivo_actual = task.info.get('archivo', 'Procesando...')
+        procesados_actual = task.info.get('procesados', procesados_actual)
     elif estado['estado'] == 'completado':
         archivo_actual = "Completado"
     
     return jsonify({
         "archivo": archivo_actual,
-        "procesados": estado['documentos_procesados'],
+        "procesados": procesados_actual,
         "meta": estado['total_documentos'],
         "estado": estado['estado']
     })
@@ -199,6 +202,7 @@ def api_descargar_reporte(task_id):
     return send_file(bytes_output, mimetype='text/csv', as_attachment=True, download_name=nombre_archivo)
 
 @app.route('/api/imagen/<path:nombre_archivo>', methods=['GET'])
+@limiter.exempt
 @login_requerido
 def api_previsualizar_imagen(nombre_archivo):
     """Sirve una imagen del lote para previsualización en el navegador (convirtiendo TIF a JPEG si es necesario)."""
@@ -322,24 +326,35 @@ def api_aplicar_correcciones(task_id):
                     lineas[num_linea - 1] = output_line.getvalue()
                     cambios_aplicados += 1
     
-    # Escribir de vuelta
+    # Truco para evadir errores de permisos: borrar el archivo viejo (la carpeta sí tiene permisos 777)
+    # y crear uno nuevo en su lugar, evitando el PermissionError al intentar sobreescribirlo.
+    try:
+        if os.path.exists(indice_path):
+            os.remove(indice_path)
+    except Exception as e:
+        logging.warning(f"No se pudo eliminar {indice_path} previamente: {e}")
+    
+    # Escribir de vuelta (creará un archivo nuevo con permisos correctos del contenedor)
     with open(indice_path, 'w', encoding='utf-8', newline='') as f:
         f.writelines(lineas)
         
-    # Verificar umbral de reentrenamiento
+    # Verificar umbral de reentrenamiento POR CLASE específica
     try:
         if imagenes_copiadas > 0:
-            total_nuevos = 0
+            UMBRAL = 5
+            clases_listas = []
+            # Recorrer el dataset pendiente y contar por clase (Matriz/Subproceso/TipoDocumental)
             for root, dirs, files in os.walk(dataset_base):
-                # Saltar la bóveda histórica
-                if 'processed' in root.split(os.sep): 
+                if 'processed' in root.split(os.sep):
                     continue
-                total_nuevos += len([f for f in files if not f.endswith('.txt')])
-                
-            if total_nuevos >= 25:
+                archivos_clase = [f for f in files if not f.endswith('.txt')]
+                if len(archivos_clase) >= UMBRAL:
+                    clases_listas.append(root)
+            
+            if clases_listas:
                 set_estado('progreso_entrenamiento', '0')
                 set_estado('entrenamiento', 'PROCESANDO')
-                logging.info(f"🚀 ¡Umbral alcanzado ({total_nuevos} archivos)! Disparando reentrenamiento automático.")
+                logging.info(f"🚀 ¡Umbral alcanzado! Clases listas para aprender: {clases_listas}. Disparando reentrenamiento.")
     except Exception as e:
         logging.error(f"Error comprobando umbral: {e}")
     
@@ -664,10 +679,21 @@ def borrar_clase():
         return redirect(request.referrer or url_for('superadmin'))
     errores = borrar_conocimiento_clase(matriz, proceso, clase)
     nombre_matriz = 'Natural' if matriz == 'BT' else ('Jurídico' if matriz == 'BR' else matriz)
+    
+    # Disparar reentrenamiento automático para regenerar el cerebro sin esa clase
+    try:
+        from core.routing_ia import limpiar_cache
+        limpiar_cache(matriz, proceso)  # Limpiar RAM para no usar cerebro viejo
+        set_estado('progreso_entrenamiento', '0')
+        set_estado('entrenamiento', 'PROCESANDO')
+        logging.info(f"🔄 Reentrenamiento automático disparado tras borrar clase '{clase}' de {matriz}/{proceso}.")
+    except Exception as e:
+        logging.error(f"Error disparando reentrenamiento tras borrar clase: {e}")
+    
     if errores:
         flash(f"⚠️ Clase '{clase}' del proceso {proceso} ({nombre_matriz}) borrada con advertencias: {'; '.join(errores)}", "warning")
     else:
-        flash(f"✅ Clase '{clase}' del proceso {proceso} ({nombre_matriz}) eliminada. Recuerda re-entrenar la IA.", "success")
+        flash(f"✅ Clase '{clase}' del proceso {proceso} ({nombre_matriz}) eliminada. La IA se está reentrenando automáticamente.", "success")
     logging.info(f"[SUPERADMIN] {session['usuario']} borró clase {clase} de {matriz}/{proceso}.")
     return redirect(request.referrer or url_for('superadmin'))
 

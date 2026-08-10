@@ -117,7 +117,12 @@ def borrar_conocimiento_proceso(matriz, proceso):
 
 
 def borrar_conocimiento_clase(matriz, proceso, clase):
-    """Elimina una clase específica del dataset y marca el cerebro para re-entrenamiento."""
+    """
+    Elimina una clase específica del dataset (activo y procesado).
+    El cerebro entrenado NO se borra — sigue activo con el conocimiento anterior
+    hasta que el entrenador lo regenere automáticamente sin esa clase.
+    El disparador de reentrenamiento lo gestiona el llamador (app.py).
+    """
     import shutil
     errores = []
     rutas_a_borrar = [
@@ -130,14 +135,6 @@ def borrar_conocimiento_clase(matriz, proceso, clase):
                 shutil.rmtree(ruta)
             except Exception as e:
                 errores.append(f"{ruta}: {e}")
-
-    # Eliminar el cerebro del proceso para forzar re-entrenamiento sin esa clase
-    ruta_cerebro = os.path.join(CEREBROS_DIR, matriz, proceso)
-    if os.path.isdir(ruta_cerebro):
-        try:
-            shutil.rmtree(ruta_cerebro)
-        except Exception as e:
-            errores.append(f"{ruta_cerebro}: {e}")
     return errores
 
 def descartar_subida_clase(matriz, proceso, clase):

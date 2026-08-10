@@ -98,7 +98,10 @@ def procesar_lote_kofax_task(self, task_id_str):
                 
                 tipo_esperado = partes[14].strip()
                 clases_conocidas = modelos_conocidos[matriz][subproceso].get('clases', [])
-                if tipo_esperado not in clases_conocidas:
+                
+                # ── MODO DEMO: Excepción para permitir enseñar una clase nueva ──
+                # Ignoramos si no se conoce, EXCEPTO si es el Registro de Firmas para la presentación
+                if tipo_esperado not in clases_conocidas and tipo_esperado != "EXC RegistrodeFirmasCuentas":
                     procesados += 1
                     if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                     continue

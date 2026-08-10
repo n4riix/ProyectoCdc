@@ -414,10 +414,16 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
                 body: JSON.stringify({ correcciones: correccionesArray })
             })
-            .then(res => res.json())
+            .then(res => {
+                if(!res.ok) throw new Error("Error interno del servidor (Revisa los permisos del archivo).");
+                return res.json();
+            })
             .then(data => {
                 alert(data.mensaje || data.error);
                 document.getElementById('modal-discrepancias').style.display = 'none';
+            })
+            .catch(err => {
+                alert("❌ Error al aplicar correcciones: " + err.message);
             });
         });
 

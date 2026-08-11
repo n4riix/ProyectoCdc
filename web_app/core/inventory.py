@@ -80,27 +80,51 @@ def obtener_modelos_conocidos():
     return modelos
 
 
+def _fuerza_borrado_ruta(ruta):
+    """
+    Elimina un archivo o directorio de forma segura.
+    Si la carpeta tiene permisos 777 (otorgados por el Entrenador), shutil.rmtree lo borrará sin problemas.
+    """
+    if not os.path.exists(ruta):
+        return None
+        
+    import shutil
+    
+    try:
+        if os.path.isdir(ruta):
+            shutil.rmtree(ruta, ignore_errors=False)
+        else:
+            os.remove(ruta)
+        return None
+    except Exception as e:
+        # Intento secundario ignorando errores de permisos menores
+        try:
+            if os.path.isdir(ruta):
+                shutil.rmtree(ruta, ignore_errors=True)
+            else:
+                os.remove(ruta)
+            if not os.path.exists(ruta):
+                return None
+        except:
+            pass
+        return f"{ruta}: {e}"
+
+
 def borrar_todo_el_conocimiento():
     """Elimina TODOS los cerebros entrenados y TODOS los datasets (activos y procesados)."""
-    import shutil
     errores = []
     for carpeta in [CEREBROS_DIR, DATASET_DIR]:
         if os.path.isdir(carpeta):
             for item in os.listdir(carpeta):
                 ruta = os.path.join(carpeta, item)
-                try:
-                    if os.path.isdir(ruta):
-                        shutil.rmtree(ruta)
-                    else:
-                        os.remove(ruta)
-                except Exception as e:
-                    errores.append(f"{ruta}: {e}")
+                err = _fuerza_borrado_ruta(ruta)
+                if err:
+                    errores.append(err)
     return errores
 
 
 def borrar_conocimiento_proceso(matriz, proceso):
     """Elimina el cerebro y los datos de entrenamiento de un proceso específico."""
-    import shutil
     errores = []
     rutas_a_borrar = [
         os.path.join(CEREBROS_DIR, matriz, proceso),
@@ -108,11 +132,9 @@ def borrar_conocimiento_proceso(matriz, proceso):
         os.path.join(DATASET_DIR, 'processed', matriz, proceso),
     ]
     for ruta in rutas_a_borrar:
-        if os.path.isdir(ruta):
-            try:
-                shutil.rmtree(ruta)
-            except Exception as e:
-                errores.append(f"{ruta}: {e}")
+        err = _fuerza_borrado_ruta(ruta)
+        if err:
+            errores.append(err)
     return errores
 
 
@@ -123,28 +145,22 @@ def borrar_conocimiento_clase(matriz, proceso, clase):
     hasta que el entrenador lo regenere automáticamente sin esa clase.
     El disparador de reentrenamiento lo gestiona el llamador (app.py).
     """
-    import shutil
     errores = []
     rutas_a_borrar = [
         os.path.join(DATASET_DIR, matriz, proceso, clase),
         os.path.join(DATASET_DIR, 'processed', matriz, proceso, clase),
     ]
     for ruta in rutas_a_borrar:
-        if os.path.isdir(ruta):
-            try:
-                shutil.rmtree(ruta)
-            except Exception as e:
-                errores.append(f"{ruta}: {e}")
+        err = _fuerza_borrado_ruta(ruta)
+        if err:
+            errores.append(err)
     return errores
 
 def descartar_subida_clase(matriz, proceso, clase):
     """Descarta los archivos pendientes de una clase específica sin tocar los datos procesados ni los modelos."""
-    import shutil
     errores = []
     ruta = os.path.join(DATASET_DIR, matriz, proceso, clase)
-    if os.path.isdir(ruta):
-        try:
-            shutil.rmtree(ruta)
-        except Exception as e:
-            errores.append(f"{ruta}: {e}")
+    err = _fuerza_borrado_ruta(ruta)
+    if err:
+        errores.append(err)
     return errores

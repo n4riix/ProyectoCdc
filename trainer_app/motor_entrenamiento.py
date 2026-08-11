@@ -16,6 +16,9 @@ logging.getLogger("ppocr").setLevel(logging.WARNING)
 DATASET_DIR = "/volumen_compartido/dataset_entrenamiento"
 CEREBROS_DIR = "/volumen_compartido/cerebros_ia"
 
+# Forzar umask(0) para que todas las carpetas creadas por Root tengan permisos 777 (lectura/escritura/borrado para la Web)
+os.umask(0)
+
 def archive_dataset(ruta_subproceso, matriz, subproceso):
     """
     Mueve los archivos procesados a `processed/{matriz}/{subproceso}/{clase}` para limpiar el dataset activo.
@@ -33,6 +36,8 @@ def archive_dataset(ruta_subproceso, matriz, subproceso):
 
             destino_clase = os.path.join(destino_base, clase)
             os.makedirs(destino_clase, exist_ok=True)
+            try: os.chmod(destino_clase, 0o777)
+            except: pass
 
             for f in glob.glob(os.path.join(ruta_clase, '*')):
                 try:
@@ -45,6 +50,8 @@ def archive_dataset(ruta_subproceso, matriz, subproceso):
                             destino_archivo = os.path.join(destino_clase, f"{base}_{contador}{ext}")
                             contador += 1
                     shutil.move(f, destino_archivo)
+                    try: os.chmod(destino_archivo, 0o777)
+                    except: pass
                 except Exception as e:
                     print(f"⚠️ No se pudo mover {f}: {e}")
 
@@ -97,6 +104,8 @@ def obtener_texto_con_cache(ocr_instancia, ruta_archivo_imagen):
         if texto_limpio:
             with open(ruta_cache_txt, 'w', encoding='utf-8') as f:
                 f.write(texto_limpio)
+            try: os.chmod(ruta_cache_txt, 0o777)
+            except: pass
                 
         return texto_limpio
     except Exception as e:
@@ -219,6 +228,8 @@ def entrenar_plataforma_completa(callback_progreso=None):
                 # Archivamos los ejemplos procesados para mantener el dataset limpio
                 try:
                     archive_dataset(ruta_subproceso, matriz, subproceso)
+                    # Forzar permisos 777 en todo el dataset para que la web pueda borrar clases sin error de permisos
+                    os.system(f"chmod -R 777 {DATASET_DIR} {CEREBROS_DIR} 2>/dev/null")
                 except Exception as e:
                     print(f"⚠️ Error al archivar datos de {matriz}-{subproceso}: {e}")
             else:

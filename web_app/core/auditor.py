@@ -133,11 +133,11 @@ def procesar_lote_kofax_task(self, task_id_str):
                 else:
                     prediccion, confianza = predecir_documento(texto, matriz, subproceso)
 
-                # 3. Auditoría con umbral de confianza (70%)
+                # 3. Auditoría con umbral de confianza (55%)
                 confianza_pct = round(confianza * 100, 1)
                 if prediccion == "MODELO_NO_ENTRENADO":
                     estado = "warning"
-                elif confianza < 0.70:
+                elif confianza < 0.55:
                     estado = "danger"
                 elif prediccion == tipo_esperado:
                     estado = "success"

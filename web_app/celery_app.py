@@ -11,11 +11,28 @@ def make_celery(app_name=__name__):
     # Configuraciones de Celery
     celery.conf.update(
         task_serializer='json',
-        accept_content=['json'],  # Ignore other content
+        accept_content=['json'],
         result_serializer='json',
         timezone='UTC',
         enable_utc=True,
-        worker_max_tasks_per_child=1,  # FORZA QUE EL PROCESO CELERY MUERA Y REVIVA TRAS CADA TAREA PARA DEVOLVER RAM AL OS
+
+        # ─── RESILIENCIA ANTE OOM KILLER ──────────────────────────────────────
+        # acks_late=True: el broker (Redis) NO confirma la tarea como "recibida"
+        # hasta que el worker la completa exitosamente. Si el kernel mata el
+        # proceso con SIGKILL (OOM), Redis detecta que la tarea nunca fue
+        # confirmada y la vuelve a encolar automáticamente en el siguiente
+        # worker disponible. Sin esto, las tareas se pierden silenciosamente.
+        task_acks_late=True,
+
+        # task_reject_on_worker_lost=True: complementa acks_late. Cuando el
+        # proceso worker muere inesperadamente (signal 9), la tarea se rechaza
+        # (NACK) en lugar de perderse, forzando su re-encole inmediato.
+        task_reject_on_worker_lost=True,
+
+        # worker_max_tasks_per_child: el proceso Celery muere y renace tras
+        # cada tarea para devolver la RAM al OS. Crítico para OCR pesado.
+        worker_max_tasks_per_child=1,
+        # ─────────────────────────────────────────────────────────────────────
     )
     
     return celery

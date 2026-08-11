@@ -196,7 +196,14 @@ def api_descargar_reporte(task_id):
     output.seek(0)
     bytes_output = io.BytesIO(output.getvalue().encode('utf-8-sig'))
     
-    fecha = estado['fecha_inicio'][:10] if estado and estado.get('fecha_inicio') else 'sin_fecha'
+    # Postgres devuelve datetime.datetime, SQLite devuelve string — manejamos ambos casos
+    fecha_inicio_raw = estado.get('fecha_inicio') if estado else None
+    if fecha_inicio_raw is None:
+        fecha = 'sin_fecha'
+    elif hasattr(fecha_inicio_raw, 'strftime'):
+        fecha = fecha_inicio_raw.strftime('%Y-%m-%d')
+    else:
+        fecha = str(fecha_inicio_raw)[:10]
     nombre_archivo = f'Reporte_Auditoria_{fecha}_{task_id[:8]}.csv'
     
     return send_file(bytes_output, mimetype='text/csv', as_attachment=True, download_name=nombre_archivo)

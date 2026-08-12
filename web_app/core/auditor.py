@@ -150,8 +150,8 @@ def procesar_lote_kofax_task(self, task_id_str):
                 if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                 
                 llamadas_ocr_chunk += 1
-                if llamadas_ocr_chunk >= 50:
-                    logging.warning(f"🔄 [Chunk Limit] 50 imágenes procesadas. Terminando tarea para liberar RAM...")
+                if llamadas_ocr_chunk >= 70:
+                    logging.warning(f"🔄 [Chunk Limit] 70 imágenes procesadas. Terminando tarea para liberar RAM...")
                     actualizar_progreso_lote(task_id_str, procesados)
                     procesar_lote_kofax_task.apply_async(args=[task_id_str], task_id=task_id_str, countdown=2)
                     return {"status": "Chunk Completado. Re-encolando...", "total": procesados}

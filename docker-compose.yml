@@ -129,6 +129,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-intexus01}
       - DB_NAME=${DB_NAME:-cdc_database}
       - DB_PORT=${DB_PORT:-5432}
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
     volumes:
       - ./web_app:/app
       - ./volumen_compartido:/volumen_compartido

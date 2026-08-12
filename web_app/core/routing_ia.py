@@ -23,38 +23,16 @@ REGLAS_NEGOCIO = {
 
 def aplicar_regla_negocio(clases, probabilidades, texto=""):
     """
-    Regla de Negocio Bancaria:
-    1. Si la IA predice 'REC RIF', pero el documento contiene una Cédula de Identidad
-       (detectada por palabras clave de Cédula o por probabilidad candidato de DocumentoIdentidad > 1%),
-       la Cédula SIEMPRE prevalece sobre el RIF según las políticas del banco.
-    2. Si el modelo duda entre dos clases (margen < MARGEN_DUDA), desempata según REGLAS_NEGOCIO.
+    Desempata según REGLAS_NEGOCIO únicamente cuando el modelo está en duda (margen < MARGEN_DUDA).
     """
     if len(clases) < 2:
         return None, None, False
 
-    # Mapa de clases a probabilidades
-    prob_map = dict(zip(clases, probabilidades))
-    
     # Ordenar por probabilidad descendente
     ranking = sorted(zip(clases, probabilidades), key=lambda x: x[1], reverse=True)
     top_clase, top_prob = ranking[0]
     seg_clase, seg_prob = ranking[1]
 
-    # ── REGLA DE ORO BANCARIA: Cédula > RIF ──
-    # Si la IA dice que es RIF, pero hay presencia de Cédula en el documento:
-    if top_clase == "REC RIF":
-        prob_cedula = prob_map.get("REC DocumentoIdentidad", 0.0)
-        texto_upper = texto.upper() if texto else ""
-        
-        palabras_cedula = ["CEDULA", "IDENTIDAD", "VENEZOLANO", "VENEZOLANA", "REPUBLICA BOLIVARIANA", "TITULAR"]
-        tiene_palabras_cedula = any(p in texto_upper for p in palabras_cedula)
-
-        # Si la Cédula tiene al menos 1% de probabilidad O se encuentran palabras clave de Cédula en el OCR
-        if prob_cedula > 0.01 or tiene_palabras_cedula:
-            confianza_ajustada = max(top_prob, prob_cedula + prob_map.get("REC RIF", 0.0))
-            return "REC DocumentoIdentidad", min(confianza_ajustada, 0.99), True
-
-    # ── REGLA DE MARGEN DE DUDA GENERICA ──
     margen = top_prob - seg_prob
     if margen < MARGEN_DUDA:
         par = frozenset([top_clase, seg_clase])

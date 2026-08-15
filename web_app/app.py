@@ -180,41 +180,84 @@ def api_historial_lotes():
 @app.route('/api/descargar_reporte/<task_id>', methods=['GET'])
 @login_requerido
 def api_descargar_reporte(task_id):
-    """Genera y descarga un archivo Excel (.xlsx) con todos los resultados de la auditoría."""
-    import pandas as pd
+    """Genera y descarga el reporte Excel (.xlsx) con el diseño original institucional."""
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
     resultados = obtener_resultados_lote(task_id)
     estado = obtener_estado_lote(task_id)
-    
-    filas = []
-    for r in resultados:
-        veredicto_texto = 'COINCIDE' if r['estado'] == 'success' else ('NO ENTRENADO' if r['estado'] == 'warning' else 'DISCREPANCIA')
-        confianza_val = r.get('confianza', '')
-        filas.append({
-            'Línea': r.get('linea_indice', ''),
-            'Archivo': r.get('archivo', ''),
-            'Matriz': r.get('matriz', ''),
-            'Subproceso': r.get('subproceso', ''),
-            'Tipo Esperado (Cdc)': r.get('esperado', ''),
-            'Predicción IA': r.get('prediccion', ''),
-            'Confianza %': confianza_val,
-            'Veredicto': veredicto_texto
-        })
-    
-    df = pd.DataFrame(filas)
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Reporte_Auditoria', index=False)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Reporte_Auditoria"
+
+    # Encabezados exactos del formato original
+    headers = ["Archivo TIF", "Proceso", "Clasificación Humana", "Clasificación IA", "Veredicto Final"]
+    ws.append(headers)
+
+    # Palette de estilos
+    header_fill = PatternFill(start_color="C5E0B4", end_color="C5E0B4", fill_type="solid")  # Verde Lima institucional
+    header_font = Font(name="Calibri", size=11, bold=True, color="000000")
+    header_alignment = Alignment(horizontal="left", vertical="center")
+
+    thin_border = Border(
+        left=Side(style='thin', color='D9D9D9'),
+        right=Side(style='thin', color='D9D9D9'),
+        top=Side(style='thin', color='D9D9D9'),
+        bottom=Side(style='thin', color='D9D9D9')
+    )
+
+    # Estilar fila de encabezado
+    ws.row_dimensions[1].height = 26
+    for col_num in range(1, 6):
+        cell = ws.cell(row=1, column=col_num)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+        cell.border = thin_border
+
+    row_alt_fill = PatternFill(start_color="F2F5F8", end_color="F2F5F8", fill_type="solid")
+    row_white_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+    font_data = Font(name="Calibri", size=11)
+
+    for i, r in enumerate(resultados, start=2):
+        est = r.get('estado', 'danger')
+        pred = r.get('prediccion', '')
         
-        # Ajustar ancho de columnas automáticamente
-        worksheet = writer.sheets['Reporte_Auditoria']
-        for col in worksheet.columns:
-            max_len = max(len(str(cell.value or '')) for cell in col)
-            col_letter = col[0].column_letter
-            worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
-            
+        if est == 'success':
+            veredicto = "MATCH PERFECTO  ✅ MATCH PERFECTO"
+        elif est == 'warning':
+            veredicto = "ALERTA - NO ENTRENADO  ⚠️ NO ENTRENADO"
+        else:
+            veredicto = f"ALERTA - IA DETECTÓ: {pred}  🚨 ALERTA - IA DETECTÓ: {pred}"
+
+        archivo = r.get('archivo', '')
+        proceso = r.get('subproceso', '')
+        humano = r.get('esperado', '')
+        ia = pred
+
+        ws.append([archivo, proceso, humano, ia, veredicto])
+        ws.row_dimensions[i].height = 22
+        
+        fill_actual = row_alt_fill if i % 2 == 0 else row_white_fill
+        for col_num in range(1, 6):
+            cell = ws.cell(row=i, column=col_num)
+            cell.fill = fill_actual
+            cell.font = font_data
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical="center", horizontal="center" if col_num == 2 else "left")
+
+    # Ajustar ancho de columnas automáticamente
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 5, 16)
+
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
-    
+
     # Postgres devuelve datetime.datetime, SQLite devuelve string — manejamos ambos casos
     fecha_inicio_raw = estado.get('fecha_inicio') if estado else None
     if fecha_inicio_raw is None:
@@ -224,7 +267,7 @@ def api_descargar_reporte(task_id):
     else:
         fecha = str(fecha_inicio_raw)[:10]
     nombre_archivo = f'Reporte_Auditoria_{fecha}_{task_id[:8]}.xlsx'
-    
+
     return send_file(
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

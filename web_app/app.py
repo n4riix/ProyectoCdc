@@ -180,21 +180,40 @@ def api_historial_lotes():
 @app.route('/api/descargar_reporte/<task_id>', methods=['GET'])
 @login_requerido
 def api_descargar_reporte(task_id):
-    """Genera y descarga un CSV con todos los resultados de la auditoría."""
+    """Genera y descarga un archivo Excel (.xlsx) con todos los resultados de la auditoría."""
+    import pandas as pd
     resultados = obtener_resultados_lote(task_id)
     estado = obtener_estado_lote(task_id)
     
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Línea', 'Archivo', 'Matriz', 'Subproceso', 'Tipo Esperado (Cdc)', 'Predicción IA', 'Confianza %', 'Veredicto'])
-    
+    filas = []
     for r in resultados:
         veredicto_texto = 'COINCIDE' if r['estado'] == 'success' else ('NO ENTRENADO' if r['estado'] == 'warning' else 'DISCREPANCIA')
         confianza_val = r.get('confianza', '')
-        writer.writerow([r.get('linea_indice', ''), r['archivo'], r.get('matriz', ''), r.get('subproceso', ''), r.get('esperado', ''), r.get('prediccion', ''), confianza_val, veredicto_texto])
+        filas.append({
+            'Línea': r.get('linea_indice', ''),
+            'Archivo': r.get('archivo', ''),
+            'Matriz': r.get('matriz', ''),
+            'Subproceso': r.get('subproceso', ''),
+            'Tipo Esperado (Cdc)': r.get('esperado', ''),
+            'Predicción IA': r.get('prediccion', ''),
+            'Confianza %': confianza_val,
+            'Veredicto': veredicto_texto
+        })
     
+    df = pd.DataFrame(filas)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name='Reporte_Auditoria', index=False)
+        
+        # Ajustar ancho de columnas automáticamente
+        worksheet = writer.sheets['Reporte_Auditoria']
+        for col in worksheet.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = col[0].column_letter
+            worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
+            
     output.seek(0)
-    bytes_output = io.BytesIO(output.getvalue().encode('utf-8-sig'))
     
     # Postgres devuelve datetime.datetime, SQLite devuelve string — manejamos ambos casos
     fecha_inicio_raw = estado.get('fecha_inicio') if estado else None
@@ -204,9 +223,14 @@ def api_descargar_reporte(task_id):
         fecha = fecha_inicio_raw.strftime('%Y-%m-%d')
     else:
         fecha = str(fecha_inicio_raw)[:10]
-    nombre_archivo = f'Reporte_Auditoria_{fecha}_{task_id[:8]}.csv'
+    nombre_archivo = f'Reporte_Auditoria_{fecha}_{task_id[:8]}.xlsx'
     
-    return send_file(bytes_output, mimetype='text/csv', as_attachment=True, download_name=nombre_archivo)
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=nombre_archivo
+    )
 
 @app.route('/api/imagen/<path:nombre_archivo>', methods=['GET'])
 @limiter.exempt

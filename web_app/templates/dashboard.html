@@ -51,7 +51,7 @@
             
             <!-- Botones de acción post-auditoría -->
             <div id="botones-post" style="display: none; margin-bottom: 15px;">
-                <button id="btn-descargar-csv" class="btn btn-primary" style="margin-right: 10px;">📥 Descargar Reporte CSV</button>
+                <button id="btn-descargar-csv" class="btn btn-primary" style="margin-right: 10px;">📊 Descargar Reporte Excel (.xlsx)</button>
                 <button id="btn-revisar-discrepancias" class="btn btn-success" style="background-color: #d9534f;">🔍 Revisar Discrepancias</button>
             </div>
             
@@ -127,7 +127,9 @@
                         <tr style="border-bottom: 1px solid var(--input-border);"><td style="padding: 8px; font-weight: bold;">Matriz / Proceso:</td><td id="disc-ruta" style="padding: 8px;"></td></tr>
                         <tr style="border-bottom: 1px solid var(--input-border); background: rgba(217,83,79,0.1);"><td style="padding: 8px; font-weight: bold;">Operador Cdc dijo:</td><td id="disc-esperado" style="padding: 8px; color: #d9534f; font-weight: bold;"></td></tr>
                         <tr style="border-bottom: 1px solid var(--input-border); background: rgba(92,184,92,0.1);"><td style="padding: 8px; font-weight: bold;">IA Detectó:</td><td id="disc-prediccion" style="padding: 8px; color: #5cb85c; font-weight: bold;"></td></tr>
+                        {% if rol == 'superadmin' %}
                         <tr style="border-bottom: 1px solid var(--input-border);"><td style="padding: 8px; font-weight: bold;">Confianza IA:</td><td id="disc-confianza" style="padding: 8px;"></td></tr>
+                        {% endif %}
                     </table>
 
                     <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px;">

@@ -86,22 +86,28 @@ def procesar_lote_kofax_task(self, task_id_str):
                 caja_completa = partes[13].strip().upper()
                 matriz = caja_completa[:2]
 
+                archivo = partes[15].strip() if len(partes) > 15 else ""
+                archivo_lower = archivo.lower()
+                if archivo and not (archivo_lower.endswith('.tif') or archivo_lower.endswith('.pdf') or archivo_lower.endswith('.jpg')):
+                    archivo += '.TIF'
+
                 if matriz != 'BT':
+                    guardar_resultado_auditoria(task_id_str, numero_linea, archivo or f"Linea_{numero_linea}", matriz, subproceso, tipo_esperado, "PROCESO NO HABILITADO", "warning", 0.0)
                     procesados += 1
                     if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                     continue
                 
                 if matriz not in modelos_conocidos or subproceso not in modelos_conocidos[matriz]:
+                    guardar_resultado_auditoria(task_id_str, numero_linea, archivo or f"Linea_{numero_linea}", matriz, subproceso, tipo_esperado, "MODELO NO ENTRENADO", "warning", 0.0)
                     procesados += 1
                     if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                     continue
                 
-                tipo_esperado = partes[14].strip()
                 clases_conocidas = modelos_conocidos[matriz][subproceso].get('clases', [])
                 
                 # ── MODO DEMO: Excepción para permitir enseñar una clase nueva ──
-                # Ignoramos si no se conoce, EXCEPTO si es el Registro de Firmas para la presentación
                 if tipo_esperado not in clases_conocidas and tipo_esperado != "EXC RegistrodeFirmasCuentas":
+                    guardar_resultado_auditoria(task_id_str, numero_linea, archivo or f"Linea_{numero_linea}", matriz, subproceso, tipo_esperado, "DOCUMENTO NO ENTRENADO", "warning", 0.0)
                     procesados += 1
                     if procesados % 50 == 0: actualizar_progreso_lote(task_id_str, procesados)
                     continue

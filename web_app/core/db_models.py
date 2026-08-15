@@ -419,7 +419,7 @@ def obtener_estado_lote(task_id):
 def obtener_resultados_lote(task_id):
     conn = obtener_conexion()
     cursor = obtener_cursor(conn)
-    execute_query(cursor, "SELECT * FROM auditoria_resultados WHERE auditoria_id = ?", (task_id,))
+    execute_query(cursor, "SELECT * FROM auditoria_resultados WHERE auditoria_id = ? ORDER BY linea_indice ASC", (task_id,))
     rows = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return rows

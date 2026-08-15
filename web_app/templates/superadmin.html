@@ -308,9 +308,34 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <button type="submit" class="btn-danger-total">☢️ RESTABLECER TODO A CERO — Borrar Todos los Conocimientos</button>
             </form>
+        <!-- MODAL CAMBIAR CONTRASEÑA -->
+        <div id="modal-cambiar-clave" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6);">
+            <div class="modal-content card" style="max-width: 450px; margin: 10% auto; padding: 25px; border-top: 4px solid #f0ad4e;">
+                <h3 style="margin-top: 0; color: var(--text-heading);">🔑 Cambiar Contraseña</h3>
+                <p style="color: var(--text-main); font-size: 0.95rem;">Cambiando clave para el usuario: <strong id="cambiar-user-nombre" style="color: var(--color-action-purple);"></strong></p>
+                <form method="POST" action="/superadmin/cambiar_clave">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <input type="hidden" id="cambiar-user-id" name="user_id" value=""/>
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label>Nueva Contraseña:</label>
+                        <input type="password" name="nueva_clave" class="form-control" placeholder="Escribe la nueva contraseña" required style="width: 100%;">
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                        <button type="button" class="btn" onclick="document.getElementById('modal-cambiar-clave').style.display='none';">Cancelar</button>
+                        <button type="submit" class="btn btn-warning">Guardar Nueva Clave</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script>
+        function cambiarClave(userId, username) {
+            document.getElementById('cambiar-user-id').value = userId;
+            document.getElementById('cambiar-user-nombre').innerText = username;
+            document.getElementById('modal-cambiar-clave').style.display = 'block';
+        }
+    </script>
 </body>
 </html>

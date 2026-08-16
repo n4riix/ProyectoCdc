@@ -82,9 +82,10 @@ def procesar_lote_kofax_task(self, task_id_str):
                     # Ya se procesó en una ejecución anterior (reanudación)
                     continue
 
-                subproceso = partes[8].strip().upper()
-                caja_completa = partes[13].strip().upper()
+                subproceso = partes[8].strip().upper() if len(partes) > 8 else ""
+                caja_completa = partes[13].strip().upper() if len(partes) > 13 else ""
                 matriz = caja_completa[:2]
+                tipo_esperado = partes[14].strip() if len(partes) > 14 else ""
 
                 archivo = partes[15].strip() if len(partes) > 15 else ""
                 archivo_lower = archivo.lower()

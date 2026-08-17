@@ -140,10 +140,8 @@ def borrar_conocimiento_proceso(matriz, proceso):
 
 def borrar_conocimiento_clase(matriz, proceso, clase):
     """
-    Elimina una clase específica del dataset (activo y procesado).
-    El cerebro entrenado NO se borra — sigue activo con el conocimiento anterior
-    hasta que el entrenador lo regenere automáticamente sin esa clase.
-    El disparador de reentrenamiento lo gestiona el llamador (app.py).
+    Elimina únicamente una clase específica del dataset (activo y procesado) sin borrar el cerebro completo.
+    El disparador de reentrenamiento regenerará el modelo manteniendo las demás clases intactas.
     """
     errores = []
     rutas_a_borrar = [

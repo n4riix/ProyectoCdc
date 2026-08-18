@@ -83,31 +83,39 @@ def obtener_modelos_conocidos():
 def _fuerza_borrado_ruta(ruta):
     """
     Elimina un archivo o directorio de forma segura.
-    Si la carpeta tiene permisos 777 (otorgados por el Entrenador), shutil.rmtree lo borrará sin problemas.
+    Incluye fallback con rm -rf de sistema para prevenir fallos por permisos de usuario/root.
     """
     if not os.path.exists(ruta):
         return None
         
     import shutil
     
+    def _onerror(func, path, exc_info):
+        try:
+            os.chmod(path, 0o777)
+            func(path)
+        except Exception:
+            pass
+
     try:
         if os.path.isdir(ruta):
-            shutil.rmtree(ruta, ignore_errors=False)
+            shutil.rmtree(ruta, onerror=_onerror)
         else:
+            try:
+                os.chmod(ruta, 0o777)
+            except Exception:
+                pass
             os.remove(ruta)
-        return None
-    except Exception as e:
-        # Intento secundario ignorando errores de permisos menores
-        try:
-            if os.path.isdir(ruta):
-                shutil.rmtree(ruta, ignore_errors=True)
-            else:
-                os.remove(ruta)
-            if not os.path.exists(ruta):
-                return None
-        except:
-            pass
-        return f"{ruta}: {e}"
+    except Exception:
+        os.system(f"rm -rf '{ruta}' 2>/dev/null")
+
+    if os.path.exists(ruta):
+        os.system(f"rm -rf '{ruta}' 2>/dev/null")
+
+    if os.path.exists(ruta):
+        return f"{ruta}: No se pudo eliminar la carpeta por permisos del sistema."
+
+    return None
 
 
 def borrar_todo_el_conocimiento():

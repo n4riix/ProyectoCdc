@@ -144,10 +144,11 @@ def procesar_lote_kofax_task(self, task_id_str):
                 confianza_pct = round(confianza * 100, 1)
                 if prediccion == "MODELO_NO_ENTRENADO":
                     estado = "warning"
+                elif prediccion == tipo_esperado:
+                    # Coincidencia Operador - IA -> Match Perfecto garantizado
+                    estado = "success"
                 elif confianza < 0.50:
                     estado = "danger"
-                elif prediccion == tipo_esperado:
-                    estado = "success"
                 else:
                     estado = "danger"
 

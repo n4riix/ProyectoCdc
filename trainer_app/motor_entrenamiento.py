@@ -200,7 +200,7 @@ def entrenar_plataforma_completa(callback_progreso=None):
             # FORZAR REENTRENAMIENTO: Usamos todos los datos (incluyendo históricos en caché)
             hay_datos_nuevos = True
             
-            if hay_datos_nuevos and len(textos) > 0:
+            if len(textos) > 0:
                 clases_unicas = sorted(set(etiquetas))
                 vectorizador = TfidfVectorizer(max_features=5000, ngram_range=(1,2))
                 x_vect = vectorizador.fit_transform(textos)
@@ -221,7 +221,7 @@ def entrenar_plataforma_completa(callback_progreso=None):
                 try:
                     joblib.dump(modelo, os.path.join(ruta_guardado, "modelo.pkl"))
                     joblib.dump(vectorizador, os.path.join(ruta_guardado, "vectorizador.pkl"))
-                    print(f"✅ [Éxito] Cerebro especializado '{matriz}-{subproceso}' actualizado en la bóveda.")
+                    print(f"✅ [Éxito] Cerebro especializado '{matriz}-{subproceso}' actualizado en la bóveda con {len(clases_unicas)} clases.")
                 except Exception as e:
                     print(f"❌ Error guardando modelo para {matriz}-{subproceso}: {e}")
                 
@@ -233,6 +233,14 @@ def entrenar_plataforma_completa(callback_progreso=None):
                 except Exception as e:
                     print(f"⚠️ Error al archivar datos de {matriz}-{subproceso}: {e}")
             else:
+                # No quedan clases ni textos en este subproceso -> eliminar cerebro en disco
+                ruta_guardado = os.path.join(CEREBROS_DIR, matriz, subproceso)
+                for f in ["modelo.pkl", "vectorizador.pkl"]:
+                    p_f = os.path.join(ruta_guardado, f)
+                    if os.path.exists(p_f):
+                        try: os.remove(p_f)
+                        except Exception: pass
+                print(f"⚠️ [{matriz}-{subproceso}] Sin clases ni datos. Cerebro removido de la bóveda.")
                 print(f"⚠️ [{matriz}-{subproceso}] Sin datos nuevos para entrenar.")
 
     print("🎉 Rutina de aprendizaje masivo finalizada con éxito.")

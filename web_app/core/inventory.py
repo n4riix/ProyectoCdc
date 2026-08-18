@@ -64,12 +64,15 @@ def obtener_modelos_conocidos():
                     clases = []
 
             if not clases:
-                ruta_dataset = os.path.join(DATASET_DIR, matriz, subproceso)
-                if os.path.isdir(ruta_dataset):
-                    clases = sorted(
-                        nombre for nombre in os.listdir(ruta_dataset)
-                        if os.path.isdir(os.path.join(ruta_dataset, nombre))
-                    )
+                clases_set = set()
+                for d_base in [DATASET_DIR, os.path.join(DATASET_DIR, 'processed')]:
+                    ruta_dataset = os.path.join(d_base, matriz, subproceso)
+                    if os.path.isdir(ruta_dataset):
+                        for nombre in os.listdir(ruta_dataset):
+                            ruta_clase = os.path.join(ruta_dataset, nombre)
+                            if os.path.isdir(ruta_clase) and len(os.listdir(ruta_clase)) > 0:
+                                clases_set.add(nombre)
+                clases = sorted(clases_set)
 
             if clases:
                 modelos.setdefault(matriz, {})[subproceso] = {
@@ -148,13 +151,15 @@ def borrar_conocimiento_proceso(matriz, proceso):
 
 def borrar_conocimiento_clase(matriz, proceso, clase):
     """
-    Elimina únicamente una clase específica del dataset (activo y procesado) sin borrar el cerebro completo.
-    El disparador de reentrenamiento regenerará el modelo manteniendo las demás clases intactas.
+    Elimina una clase específica del dataset (activo y procesado) y limpia el cerebro actual
+    para que la interfaz refleje de inmediato el borrado y el Entrenador regenere el modelo con las clases restantes.
     """
     errores = []
     rutas_a_borrar = [
         os.path.join(DATASET_DIR, matriz, proceso, clase),
         os.path.join(DATASET_DIR, 'processed', matriz, proceso, clase),
+        os.path.join(CEREBROS_DIR, matriz, proceso, 'modelo.pkl'),
+        os.path.join(CEREBROS_DIR, matriz, proceso, 'vectorizador.pkl'),
     ]
     for ruta in rutas_a_borrar:
         err = _fuerza_borrado_ruta(ruta)

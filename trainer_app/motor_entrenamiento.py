@@ -79,15 +79,15 @@ def obtener_texto_con_cache(ocr_instancia, ruta_archivo_imagen):
     # Definimos la ruta del archivo de texto gemelo (Ej: documento.pdf -> documento.pdf.txt)
     ruta_cache_txt = ruta_archivo_imagen + ".txt"
     
-    # Verificar si la caché es válida (Existe y es más nueva que la imagen original)
-    if os.path.exists(ruta_cache_txt):
-        tiempo_imagen = os.path.getmtime(ruta_archivo_imagen)
-        tiempo_cache = os.path.getmtime(ruta_cache_txt)
-        
-        if tiempo_cache > tiempo_imagen:
-            # ¡Maniobra de alta velocidad! Leemos el texto plano directamente
-            with open(ruta_cache_txt, 'r', encoding='utf-8') as f:
-                return f.read().strip()
+    # Verificar si la caché existe y contiene texto extraído previamente
+    if os.path.exists(ruta_cache_txt) and os.path.getsize(ruta_cache_txt) > 0:
+        try:
+            with open(ruta_cache_txt, 'r', encoding='utf-8', errors='ignore') as f:
+                txt_c = f.read().strip()
+                if txt_c:
+                    return txt_c
+        except Exception as e:
+            print(f"Error leyendo caché {ruta_cache_txt}: {e}")
             
     # Si no hay caché o la imagen es más nueva, encendemos el OCR pesado
     print(f"👁️ [OCR Activo] Procesando imagen original: {os.path.basename(ruta_archivo_imagen)}")

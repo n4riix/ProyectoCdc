@@ -327,9 +327,12 @@ def api_aplicar_correcciones(task_id):
         return jsonify({"error": "No se recibieron correcciones para aplicar."}), 400
     
     lote_dir = '/volumen_compartido/lote_kofax'
-    archivos_indice = glob.glob(os.path.join(lote_dir, 'Indice_*.txt'))
+    archivos_indice = [
+        f for f in glob.glob(os.path.join(lote_dir, '*.[tT][xX][tT]'))
+        if os.path.basename(f).lower().startswith('indice_')
+    ]
     if not archivos_indice:
-        return jsonify({"error": "No se encontró el archivo Indice_*.txt."}), 404
+        return jsonify({"error": "No se encontró ningún archivo de índice ('Indice_*.txt' o 'indice_*.txt')."}), 404
     
     indice_path = archivos_indice[0]
     

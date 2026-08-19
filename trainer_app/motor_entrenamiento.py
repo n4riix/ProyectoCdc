@@ -135,19 +135,24 @@ def entrenar_plataforma_completa(callback_progreso=None):
     clases_procesadas = 0
 
     for matriz in matrices:
+        subprocesos = set()
         ruta_matriz = os.path.join(DATASET_DIR, matriz)
-        if not os.path.exists(ruta_matriz):
-            continue
+        if os.path.exists(ruta_matriz):
+            subprocesos.update(n for n in os.listdir(ruta_matriz) if os.path.isdir(os.path.join(ruta_matriz, n)))
+        
+        ruta_matriz_proc = os.path.join(DATASET_DIR, 'processed', matriz)
+        if os.path.exists(ruta_matriz_proc):
+            subprocesos.update(n for n in os.listdir(ruta_matriz_proc) if os.path.isdir(os.path.join(ruta_matriz_proc, n)))
 
-        for subproceso in os.listdir(ruta_matriz):
-            ruta_subproceso = os.path.join(ruta_matriz, subproceso)
-            if not os.path.isdir(ruta_subproceso):
-                continue
+        for subproceso in sorted(subprocesos):
+            ruta_subproceso = os.path.join(DATASET_DIR, matriz, subproceso)
+            clases_activas = []
+            if os.path.isdir(ruta_subproceso):
+                clases_activas = sorted(
+                    nombre for nombre in os.listdir(ruta_subproceso)
+                    if os.path.isdir(os.path.join(ruta_subproceso, nombre))
+                )
             
-            clases_activas = sorted(
-                nombre for nombre in os.listdir(ruta_subproceso)
-                if os.path.isdir(os.path.join(ruta_subproceso, nombre))
-            )
             ruta_subproceso_archivo = os.path.join(DATASET_DIR, 'processed', matriz, subproceso)
             clases_archivadas = []
             if os.path.isdir(ruta_subproceso_archivo):

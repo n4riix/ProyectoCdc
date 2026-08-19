@@ -16,10 +16,13 @@ def procesar_lote_kofax_task(self, task_id_str):
         lote_dir = '/volumen_compartido/lote_kofax'
         os.makedirs(lote_dir, exist_ok=True)
         
-        archivos_indice = glob.glob(os.path.join(lote_dir, 'Indice_*.txt'))
+        archivos_indice = [
+            f for f in glob.glob(os.path.join(lote_dir, '*.[tT][xX][tT]'))
+            if os.path.basename(f).lower().startswith('indice_')
+        ]
         if not archivos_indice:
             completar_lote_auditoria(task_id_str, 'error')
-            return {"error": "No se encontró ningún archivo 'Indice_*.txt'."}
+            return {"error": "No se encontró ningún archivo de índice ('Indice_*.txt' o 'indice_*.txt')."}
 
         indice_path = archivos_indice[0]
         

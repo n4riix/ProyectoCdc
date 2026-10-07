@@ -26,7 +26,9 @@ def obtener_conexion():
     else:
         import sqlite3
         os.makedirs(os.path.dirname(SQLITE_DB_PATH), exist_ok=True)
-        conn = sqlite3.connect(SQLITE_DB_PATH, timeout=30.0)
+        conn = sqlite3.connect(SQLITE_DB_PATH, timeout=60.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=60000;")
         conn.row_factory = sqlite3.Row
         return conn
 
@@ -134,9 +136,18 @@ def inicializar_base_datos():
                     prediccion TEXT,
                     confianza REAL DEFAULT 100.0,
                     estado TEXT,
+                    fecha_indice TEXT,
+                    fechas_documento TEXT,
+                    coincidencia_fecha INTEGER DEFAULT 1,
                     FOREIGN KEY(auditoria_id) REFERENCES auditorias_lotes(id)
                 )
             ''')
+            try:
+                cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN IF NOT EXISTS fecha_indice TEXT")
+                cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN IF NOT EXISTS fechas_documento TEXT")
+                cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN IF NOT EXISTS coincidencia_fecha INTEGER DEFAULT 1")
+            except Exception:
+                pass
         finally:
             # Siempre liberar el lock al terminar (éxito o error)
             cursor.execute("SELECT pg_advisory_unlock(99991)")
@@ -222,6 +233,15 @@ def inicializar_base_datos():
         except: pass
         try:
             cursor.execute("ALTER TABLE auditorias_lotes ADD COLUMN archivo_indice TEXT")
+        except: pass
+        try:
+            cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN fecha_indice TEXT")
+        except: pass
+        try:
+            cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN fechas_documento TEXT")
+        except: pass
+        try:
+            cursor.execute("ALTER TABLE auditoria_resultados ADD COLUMN coincidencia_fecha INTEGER DEFAULT 1")
         except: pass
 
     # Inyección de usuarios maestros
@@ -397,11 +417,11 @@ def completar_lote_auditoria(task_id, estado='completado'):
     finally:
         conn.close()
 
-def guardar_resultado_auditoria(task_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza=100.0):
+def guardar_resultado_auditoria(task_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza=100.0, fecha_indice=None, fechas_documento=None, coincidencia_fecha=1):
     conn = obtener_conexion()
     cursor = obtener_cursor(conn)
     try:
-        execute_query(cursor, "INSERT INTO auditoria_resultados (auditoria_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (task_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza))
+        execute_query(cursor, "INSERT INTO auditoria_resultados (auditoria_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza, fecha_indice, fechas_documento, coincidencia_fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (task_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza, fecha_indice, fechas_documento, coincidencia_fecha))
         conn.commit()
     except Exception as e:
         pass
@@ -415,6 +435,14 @@ def obtener_estado_lote(task_id):
     row = fetchone_dict(cursor)
     conn.close()
     return row
+
+def obtener_ultimo_archivo_auditado(task_id):
+    conn = obtener_conexion()
+    cursor = obtener_cursor(conn)
+    execute_query(cursor, "SELECT archivo FROM auditoria_resultados WHERE auditoria_id = ? ORDER BY id DESC LIMIT 1", (task_id,))
+    row = fetchone_dict(cursor)
+    conn.close()
+    return row['archivo'] if row else None
 
 def obtener_resultados_lote(task_id):
     conn = obtener_conexion()

@@ -2,8 +2,108 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Conocimiento del Modelo IA - CDC</title>
+    <title>Conocimiento IA - CDC</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo_banco.css') }}">
+    <style>
+        .tipo-card {
+            background: var(--input-bg, rgba(255,255,255,0.05));
+            border: 1px solid var(--input-border, rgba(255,255,255,0.1));
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 14px;
+            transition: all 0.25s ease;
+        }
+        .tipo-card:hover {
+            border-color: rgba(0, 210, 106, 0.4);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        }
+        .tipo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .tipo-titulo {
+            font-size: 1.05rem;
+            font-weight: bold;
+            color: var(--text-heading);
+        }
+        .proceso-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 123, 255, 0.15);
+            color: #4da3ff;
+            border: 1px solid rgba(0, 123, 255, 0.3);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-right: 6px;
+            margin-bottom: 6px;
+            transition: all 0.2s ease;
+        }
+        .proceso-badge:hover {
+            background: rgba(0, 123, 255, 0.25);
+        }
+        .btn-del-proc {
+            background: none;
+            border: none;
+            color: #ff7875;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: bold;
+            padding: 0 4px;
+            border-radius: 50%;
+            line-height: 1;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            margin-left: 2px;
+        }
+        .proceso-badge:hover .btn-del-proc {
+            opacity: 1;
+            visibility: visible;
+        }
+        .btn-del-proc:hover {
+            color: #fff;
+            background: #d9534f;
+            transform: scale(1.15);
+        }
+        .agregar-form {
+            display: none;
+            margin-top: 14px;
+            padding: 14px 16px;
+            background: rgba(40, 167, 69, 0.05);
+            border: 1px dashed #28a745;
+            border-radius: 8px;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+        .agregar-form.visible {
+            display: block;
+        }
+        .btn-add-proceso {
+            background: none;
+            border: 1px solid #28a745;
+            color: #28a745;
+            border-radius: 6px;
+            padding: 4px 12px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        .btn-add-proceso:hover {
+            background: #28a745;
+            color: #fff;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
 </head>
 <body>
     <div class="navbar">
@@ -19,47 +119,169 @@
             <button class="theme-toggle">🌗</button>
             <span>👤 {{ usuario }} ({{ rol }})</span>
             <a href="/dashboard">🏠 Inicio</a>
-            {% if rol == 'superadmin' %}
-                <a href="/superadmin" style="color: #d9534f;">🛡️ Super Admin</a>
-                <a href="/admin">⚙️ Entrenar IA</a>
-            {% elif rol == 'admin' %}
+            {% if rol in ['admin', 'superadmin'] %}
                 <a href="/admin">⚙️ Entrenar IA</a>
             {% endif %}
+            <a href="/conocimiento" class="nav-active" style="border-bottom: 2px solid var(--border-accent);">🧩 Conocimiento IA</a>
+            
+            {% if rol == 'superadmin' %}
+                <!-- SUBMENÚ DESPLEGABLE DE SUPER ADMIN (Estilo Dropdown Flotante) -->
+                <div class="nav-dropdown">
+                    <a href="/superadmin#usuarios" class="nav-dropdown-toggle" style="color: #d9534f; font-weight: bold;">
+                        🛡️ Super Admin <span style="font-size: 0.75rem;">▼</span>
+                    </a>
+                    <div class="nav-dropdown-menu">
+                        <a href="/superadmin#tab-usuarios">👥 Gestión de Usuarios</a>
+                        <a href="/superadmin#tab-migracion">📦 Migración de Conocimiento IA</a>
+                        <a href="/superadmin#tab-desaprender">🧩 Desaprender Conocimientos</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="/superadmin#tab-peligro" class="dropdown-danger" style="color: #ff7875;">☢️ Zona de Peligro (Reset)</a>
+                    </div>
+                </div>
+            {% endif %}
+            
             <a href="/logout">🚪 Cerrar Sesión</a>
         </div>
     </div>
 
     <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div style="
+                        padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;
+                        background: {% if category == 'success' %}rgba(40,167,69,0.15){% elif category == 'danger' %}rgba(220,53,69,0.15){% else %}rgba(255,193,7,0.15){% endif %};
+                        border: 1px solid {% if category == 'success' %}#28a745{% elif category == 'danger' %}#dc3545{% else %}#ffc107{% endif %};
+                        color: var(--text-main);
+                    ">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         <div class="card" style="border-left: 5px solid #28a745;">
-            <h2 style="margin-top:0">🧩 Conocimiento del Modelo IA</h2>
-            <p style="color:var(--text-main); font-size: 0.95rem;">Explora los modelos de clasificación entrenados actualmente en el sistema. Puedes desplegar cada matriz y subproceso para ver la lista exacta de clases que el modelo ya aprendió a reconocer.</p>
+            <h2 style="margin-top:0">🧩 Catálogo de Conocimientos (Tipos Documentales vs Procesos)</h2>
+            <p style="color:var(--text-main); font-size: 0.95rem;">
+                Muestra los tipos documentales aprendidos por el Cerebro Universal y la lista de procesos de negocio en los que están presentes.
+                {% if rol in ['admin', 'superadmin'] %}
+                <br><small style="color:var(--text-muted);">💡 Puedes agregar o quitar procesos a cualquier tipo documental sin necesidad de reentrenar el modelo.</small>
+                {% endif %}
+            </p>
             
-            <div style="margin-top: 16px;">
+            <div style="margin-top: 20px;">
                 {% if modelos_conocidos %}
-                    {% for matriz, subprocesos in modelos_conocidos.items() %}
-                        <details style="margin-bottom: 10px; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; padding: 10px;">
-                            <summary style="font-weight: bold; cursor: pointer; color: var(--text-heading); font-size: 1.1rem;">Persona {% if matriz == 'BT' %}Natural{% elif matriz == 'BR' %}Jurídico{% else %}{{ matriz }}{% endif %}</summary>
-                            <div style="margin-top: 10px; padding-left: 15px;">
-                                {% for subproceso, info in subprocesos.items() %}
-                                    <details style="margin-bottom: 8px; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 4px;">
-                                        <summary style="font-weight: 500; cursor: pointer; color: var(--text-main); font-size: 1.05rem;">Proceso: {{ subproceso }} <span style="font-size: 0.9rem; opacity: 0.8; margin-left: 5px;">({{ info.clases | length }} clases)</span></summary>
-                                        <div style="margin-top: 8px; padding-left: 15px; display: flex; flex-wrap: wrap; gap: 5px;">
-                                            {% for c in info.clases %}
-                                                <span class="chip">{{ c }}</span>
-                                            {% endfor %}
-                                        </div>
-                                    </details>
-                                {% endfor %}
+                    {% for item in modelos_conocidos %}
+                        <div class="tipo-card">
+                            <div class="tipo-header">
+                                <span class="tipo-titulo">📄 {{ item.clase }}</span>
+                                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                    <span class="chip" style="background:#28a745; color:white; font-size:0.85rem; font-weight:bold;">
+                                        Presente en {{ item.procesos | length }} Proceso(s)
+                                    </span>
+                                    {% if rol in ['admin', 'superadmin'] %}
+                                    <button class="btn-add-proceso"
+                                            type="button"
+                                            onclick="toggleForm('form-{{ loop.index }}')"
+                                            title="Agregar nuevo proceso a este tipo documental">
+                                        ➕ Agregar Proceso
+                                    </button>
+                                    {% endif %}
+                                </div>
                             </div>
-                        </details>
+
+                            <!-- Lista de Procesos con botón para quitar -->
+                            <div>
+                                <strong style="font-size:0.85rem; color:var(--text-muted); display:block; margin-bottom:8px;">Procesos en los que aplica:</strong>
+                                <div>
+                                    {% if item.procesos %}
+                                        {% for proc in item.procesos %}
+                                            <span class="proceso-badge">
+                                                📁 {{ proc }}
+                                                {% if rol in ['admin', 'superadmin'] %}
+                                                <form method="POST" action="/conocimiento/eliminar_proceso" style="display:inline; margin:0;" onsubmit="return confirm('¿Desvincular el proceso \'{{ proc }}\' de la clase \'{{ item.clase }}\'?');">
+                                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                    <input type="hidden" name="clase" value="{{ item.clase }}">
+                                                    <input type="hidden" name="proceso" value="{{ proc }}">
+                                                    <button type="submit" class="btn-del-proc" title="Quitar proceso {{ proc }}">✕</button>
+                                                </form>
+                                                {% endif %}
+                                            </span>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span style="font-size: 0.85rem; opacity: 0.6; font-style: italic;">Sin procesos asignados</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <!-- Formulario Desplegable con Multiselección -->
+                            {% if rol in ['admin', 'superadmin'] %}
+                            <div class="agregar-form" id="form-{{ loop.index }}">
+                                <form method="POST" action="/conocimiento/agregar_proceso" id="form-add-{{ loop.index }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="clase" value="{{ item.clase }}">
+                                    <!-- Input oculto final con los seleccionados -->
+                                    <input type="hidden" name="procesos_nuevos" id="hidden-procs-{{ loop.index }}" required>
+
+                                    <label style="font-size:0.85rem; font-weight:bold; color:var(--text-muted); display:block; margin-bottom:8px;">
+                                        Selecciona los procesos a vincular a <strong>{{ item.clase }}</strong>:
+                                    </label>
+                                    
+                                    <!-- Checkboxes de procesos del sistema -->
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; margin-bottom: 14px; background: rgba(0,0,0,0.1); padding: 12px; border-radius: 6px; border: 1px solid var(--input-border);">
+                                        {% set lista_disponibles = ['CCD', 'CNE', 'CNW', 'ACT', 'AMC', 'RCL', 'PPC', 'TDC'] %}
+                                        {% for cod in lista_disponibles %}
+                                            {% set ya_asignado = (cod in item.procesos) %}
+                                            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: {% if ya_asignado %}default{% else %}pointer{% endif %}; opacity: {% if ya_asignado %}0.4{% else %}1{% endif %}; user-select: none;">
+                                                <input type="checkbox" 
+                                                       class="chk-add-{{ loop.index }}" 
+                                                       value="{{ cod }}" 
+                                                       {% if ya_asignado %}disabled checked{% endif %}
+                                                       onchange="actualizarSeleccionAdd('{{ loop.index }}')">
+                                                {{ cod }}
+                                            </label>
+                                        {% endfor %}
+                                    </div>
+
+                                    <div style="display: flex; gap: 8px;">
+                                        <button type="submit" class="btn btn-success" style="font-size:0.85rem; padding:6px 16px;">
+                                            ✅ Guardar Procesos
+                                        </button>
+                                        <button type="button" class="btn"
+                                                style="font-size:0.85rem; padding:6px 14px; background:var(--card-bg); border:1px solid var(--input-border); color:var(--text-main);"
+                                                onclick="toggleForm('form-{{ loop.index }}')">
+                                            ✕ Cancelar
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                            {% endif %}
+                        </div>
                     {% endfor %}
                 {% else %}
-                    <p>No hay modelos entrenados disponibles en este momento.</p>
+                    <p style="padding: 20px; text-align: center;">No hay modelos entrenados disponibles en este momento.</p>
                 {% endif %}
             </div>
         </div>
     </div>
 
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script>
+        function toggleForm(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('visible');
+        }
+
+        function actualizarSeleccionAdd(idx) {
+            const chks = document.querySelectorAll('.chk-add-' + idx + ':not([disabled]):checked');
+            const seleccionados = [];
+            chks.forEach(c => seleccionados.push(c.value));
+
+            const hiddenInput = document.getElementById('hidden-procs-' + idx);
+            if (hiddenInput) {
+                hiddenInput.value = seleccionados.join(', ');
+            }
+        }
+    </script>
 </body>
 </html>

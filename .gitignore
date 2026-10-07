@@ -66,3 +66,20 @@ test_*.py
 check_*.py
 print_*.py
 trigger_*.py
+# Respaldos y scripts de diagnostico puntual
+*.bak
+*.bak*
+*.bak_*
+inspect_*.py
+query_*.py
+debug_*.py
+valida_*.py
+
+# Copias residuales sueltas en raiz de web_app
+web_app/*.html
+web_app/db_models.py
+web_app/inventory.py
+web_app/motor_entrenamiento.py
+web_app/core/app.py
+web_app/consolidar_dataset_global.py
+consolidar_dataset_global.py

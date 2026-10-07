@@ -14,7 +14,11 @@ from flask_limiter.util import get_remote_address
 
 # --- IMPORTACIONES DE TU NÚCLEO (CORE) ---
 from core.db_models import inicializar_base_datos, verificar_usuario, set_estado, get_estado, listar_usuarios, crear_usuario, eliminar_usuario, cambiar_clave_usuario
-from core.inventory import obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida, borrar_todo_el_conocimiento, borrar_conocimiento_proceso, borrar_conocimiento_clase, descartar_subida_clase
+from core.inventory import (
+    obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida,
+    borrar_todo_el_conocimiento, borrar_conocimiento_proceso, borrar_conocimiento_clase,
+    descartar_subida_clase, borrar_conocimiento_clase_global, descartar_subida_clase_global
+)
 
 # ==========================================
 # 1. CONFIGURACIÓN DE CARPETAS Y LOGS
@@ -120,8 +124,58 @@ def conocimiento():
         modelos_conocidos=modelos_conocidos
     )
 
+@app.route('/conocimiento/agregar_proceso', methods=['POST'])
+@login_requerido
+def agregar_proceso_clase():
+    if session.get('rol') not in ['admin', 'superadmin']:
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('conocimiento'))
+    clase = request.form.get('clase', '').strip()
+    procesos_raw = request.form.get('procesos_nuevos', '').strip()
+    if not clase or not procesos_raw:
+        flash("⚠️ Debes indicar la clase y al menos un proceso.", "warning")
+        return redirect(url_for('conocimiento'))
+    import re
+    from core.inventory import guardar_mapa_procesos_clase, obtener_procesos_de_clase
+    tokens = re.split(r'[,;\s]+', procesos_raw)
+    nuevos = []
+    for t in tokens:
+        c = t.strip().upper()
+        # Permitir únicamente códigos alfanuméricos bancarios estándar (ej: CCD, CNE, PPC, BT-01)
+        if c and re.match(r'^[A-Z0-9_-]{2,12}$', c):
+            nuevos.append(c)
+
+    if not nuevos:
+        flash("⚠️ Ninguno de los procesos ingresados tiene un formato válido (use códigos alfanuméricos de 2 a 12 caracteres, ej: CCD, CAH).", "warning")
+        return redirect(url_for('conocimiento'))
+
+    # Fusionar con los procesos ya existentes
+    actuales = obtener_procesos_de_clase(clase)
+    combinados = list(dict.fromkeys(actuales + nuevos))  # elimina duplicados y preserva orden
+    guardar_mapa_procesos_clase(clase, combinados)
+    flash(f"✅ Proceso(s) [{', '.join(nuevos)}] asignado(s) exitosamente a '{clase}'.", "success")
+    return redirect(url_for('conocimiento'))
+
+@app.route('/conocimiento/eliminar_proceso', methods=['POST'])
+@login_requerido
+def eliminar_proceso_clase():
+    if session.get('rol') not in ['admin', 'superadmin']:
+        flash("Acceso denegado.", "danger")
+        return redirect(url_for('conocimiento'))
+    clase = request.form.get('clase', '').strip()
+    proceso = request.form.get('proceso', '').strip().upper()
+    if not clase or not proceso:
+        return redirect(url_for('conocimiento'))
+    
+    from core.inventory import guardar_mapa_procesos_clase, obtener_procesos_de_clase
+    actuales = obtener_procesos_de_clase(clase)
+    nuevos = [p for p in actuales if p != proceso]
+    guardar_mapa_procesos_clase(clase, nuevos)
+    flash(f"🗑️ Proceso '{proceso}' desvinculado de '{clase}'.", "info")
+    return redirect(url_for('conocimiento'))
+
 from core.auditor import procesar_lote_kofax_task
-from core.db_models import obtener_estado_lote, obtener_resultados_lote, listar_lotes_auditoria
+from core.db_models import obtener_estado_lote, obtener_resultados_lote, listar_lotes_auditoria, obtener_ultimo_archivo_auditado
 import uuid
 
 @app.route('/api/estado_auditoria/<task_id>', methods=['GET'])
@@ -132,17 +186,12 @@ def api_estado_auditoria(task_id):
     if not estado:
         return jsonify({"archivo": "No encontrado", "procesados": 0, "meta": 0, "estado": "error"})
     
-    # Intentar obtener el progreso actual desde Celery si la tarea sigue activa
-    from celery_app import celery
-    task = celery.AsyncResult(task_id)
-    archivo_actual = "Iniciando..."
-    procesados_actual = estado['documentos_procesados']
-    
-    if task.state == 'PROGRESS':
-        archivo_actual = task.info.get('archivo', 'Procesando...')
-        procesados_actual = task.info.get('procesados', procesados_actual)
-    elif estado['estado'] == 'completado':
+    procesados_actual = estado['documentos_procesados'] or 0
+    if estado['estado'] == 'completado':
         archivo_actual = "Completado"
+    else:
+        ultimo = obtener_ultimo_archivo_auditado(task_id)
+        archivo_actual = ultimo if ultimo else ("Procesando..." if procesados_actual > 0 else "Iniciando...")
     
     return jsonify({
         "archivo": archivo_actual,
@@ -254,6 +303,136 @@ def api_descargar_reporte(task_id):
         col_letter = get_column_letter(col[0].column)
         ws.column_dimensions[col_letter].width = max(max_len + 5, 16)
 
+
+    # =========================================================
+    # HOJA 2: Resumen de omitidos y procesados
+    # =========================================================
+    ws2 = wb.create_sheet(title="Resumen_Omitidos")
+
+    # Clasificar resultados
+    docs_ok = []
+    docs_discrepancia = []
+    docs_duda = []
+    docs_omitidos = []
+
+    motivos_omision = {
+        "DOCUMENTO NO ENTRENADO",
+        "ARCHIVO FÍSICO NO ENCONTRADO",
+        "DOCUMENTO EN BLANCO / ILEGIBLE",
+        "MODELO_NO_ENTRENADO",
+    }
+
+    for r in resultados:
+        pred = str(r.get("prediccion") or "").strip()
+        estado_r = str(r.get("estado") or "").strip().lower()
+        if pred in motivos_omision:
+            docs_omitidos.append(r)
+        elif pred.startswith("DUDA IA"):
+            docs_duda.append(r)
+        elif estado_r == "danger":
+            docs_discrepancia.append(r)
+        else:
+            docs_ok.append(r)
+
+    total = len(resultados)
+    analizados = len(docs_ok) + len(docs_discrepancia) + len(docs_duda)
+    omitidos = len(docs_omitidos)
+
+    # --- Estilos para Hoja 2
+    fill_titulo = PatternFill("solid", fgColor="1F4E79")
+    fill_ok = PatternFill("solid", fgColor="C6EFCE")
+    fill_warn = PatternFill("solid", fgColor="FFEB9C")
+    fill_disc = PatternFill("solid", fgColor="FFC7CE")
+    fill_omit = PatternFill("solid", fgColor="D9D9D9")
+    font_blanco = Font(bold=True, color="FFFFFF", size=11)
+    font_bold = Font(bold=True)
+    alin_centro = Alignment(horizontal="center", vertical="center")
+    thin = Side(style="thin")
+    borde = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    # --- Bloque de resumen (tabla de métricas)
+    ws2.append([])
+    ws2.append(["", "RESUMEN DE AUDITORÍA"])
+    ws2.append([])
+    metricas = [
+        ("Total documentos en lote",        total,      ""),
+        ("Documentos analizados",           analizados, ""),
+        ("  ✔ Conformes (match exacto)",    len(docs_ok), ""),
+        ("  ⚠ Con discrepancia",           len(docs_discrepancia), ""),
+        ("  ～ Duda IA (baja confianza)",    len(docs_duda), ""),
+        ("Documentos omitidos",             omitidos,   ""),
+    ]
+    for etiqueta, valor, _ in metricas:
+        ws2.append(["", etiqueta, valor])
+
+    ws2.append([])
+    ws2.append([])
+
+    # --- Tabla detalle de omitidos
+    ws2.append(["", "DETALLE DE DOCUMENTOS OMITIDOS"])
+    ws2.append([])
+
+    if docs_omitidos:
+        encab = ["N°", "Archivo TIF", "Proceso", "Clasificación Humana", "Motivo Omisión"]
+        ws2.append(encab)
+        for idx, r in enumerate(docs_omitidos, 1):
+            ws2.append([
+                idx,
+                r.get("archivo", ""),
+                f"{r.get('matriz', '')} - {r.get('subproceso', '')}",
+                r.get("esperado", ""),
+                r.get("prediccion", ""),
+            ])
+    else:
+        ws2.append(["", "✔ No hubo documentos omitidos en este lote."])
+
+    # --- Tabla detalle de documentos con duda IA
+    ws2.append([])
+    ws2.append([])
+    ws2.append(["", "DETALLE DE DOCUMENTOS CON DUDA IA"])
+    ws2.append([])
+
+    if docs_duda:
+        encab2 = ["N°", "Archivo TIF", "Proceso", "Clasificación Humana", "Predicción IA (con confianza)"]
+        ws2.append(encab2)
+        for idx, r in enumerate(docs_duda, 1):
+            ws2.append([
+                idx,
+                r.get("archivo", ""),
+                f"{r.get('matriz', '')} - {r.get('subproceso', '')}",
+                r.get("esperado", ""),
+                r.get("prediccion", ""),
+            ])
+    else:
+        ws2.append(["", "✔ No hubo documentos con duda de clasificación."])
+
+    # --- Aplicar estilos a la hoja 2
+    # Títulos de sección
+    for fila_titulo in [2, 11, 14 + len(docs_omitidos) + (2 if docs_omitidos else 1) + 3]:
+        cell = ws2.cell(row=fila_titulo, column=2)
+        cell.fill = fill_titulo
+        cell.font = font_blanco
+        cell.alignment = alin_centro
+
+    # Filas de métricas con relleno por tipo
+    fills_metricas = [fill_ok, fill_ok, fill_ok, fill_disc, fill_warn, fill_omit]
+    for i, fill in enumerate(fills_metricas):
+        fila_m = 4 + i
+        for col in [2, 3]:
+            c = ws2.cell(row=fila_m, column=col)
+            c.fill = fill
+            c.border = borde
+            if col == 3:
+                c.alignment = alin_centro
+                c.font = font_bold
+
+    # Ajustar anchos columna 2 y 3
+    ws2.column_dimensions["B"].width = 42
+    ws2.column_dimensions["C"].width = 12
+    ws2.column_dimensions["D"].width = 20
+    ws2.column_dimensions["E"].width = 30
+    ws2.column_dimensions["F"].width = 40
+
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
@@ -280,7 +459,8 @@ def api_descargar_reporte(task_id):
 @login_requerido
 def api_previsualizar_imagen(nombre_archivo):
     """Sirve una imagen del lote para previsualización en el navegador (convirtiendo TIF a JPEG si es necesario)."""
-    lote_dir = '/volumen_compartido/lote_kofax'
+    # lote_dir = '/volumen_compartido/lote_kofax'  # ORIGINAL - comentado temporalmente
+    lote_dir = '/mnt/lote_nuevo/Respaldo_ImagenesBBVA/Imagenes_30092026_Corte_131500'  # TEMPORAL: lote BBVA Septiembre
     ruta = os.path.join(lote_dir, nombre_archivo)
     
     # Prevenir Path Traversal
@@ -326,7 +506,8 @@ def api_aplicar_correcciones(task_id):
     if not correcciones_aprobadas:
         return jsonify({"error": "No se recibieron correcciones para aplicar."}), 400
     
-    lote_dir = '/volumen_compartido/lote_kofax'
+    # lote_dir = '/volumen_compartido/lote_kofax'  # ORIGINAL - comentado temporalmente
+    lote_dir = '/mnt/lote_nuevo/Respaldo_ImagenesBBVA/Imagenes_30092026_Corte_131500'  # TEMPORAL: lote BBVA Septiembre
     archivos_indice = [
         f for f in glob.glob(os.path.join(lote_dir, '*.[tT][xX][tT]'))
         if os.path.basename(f).lower().startswith('indice_')
@@ -465,47 +646,48 @@ def subir_documentos():
     if session['rol'] not in ('admin', 'superadmin'):
         return redirect(url_for('dashboard'))
 
-    matriz = secure_filename(request.form.get('matriz', '').strip())
-    subproceso_raw = request.form.get('subproceso', '').strip().upper()
+    procesos_raw = request.form.get('procesos', '').strip()
     clase_doc = request.form.get('clase_documento', '').strip()
     archivos = request.files.getlist('archivos')
 
-    # Separar subprocesos por coma y limpiarlos
-    lista_subprocesos = [secure_filename(sp.strip()) for sp in subproceso_raw.split(',') if sp.strip()]
-
-    if not matriz or not lista_subprocesos or not clase_doc or not archivos:
-        flash("Todos los campos son obligatorios", "danger")
+    if not clase_doc or not archivos:
+        flash("Debe indicar el nombre del tipo documental y seleccionar al menos un archivo.", "danger")
         return redirect(url_for('admin'))
+
+    # Procesar procesos ingresados y forzar mayúsculas
+    procesos_lista = []
+    if procesos_raw:
+        import re
+        tokens = re.split(r'[,;\s]+', procesos_raw)
+        procesos_lista = [t.strip().upper() for t in tokens if t.strip()]
 
     clase_doc_segura = secure_filename(clase_doc).replace("_", " ")
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Pre-leer archivos válidos en memoria (para poder guardarlos múltiples veces)
-    archivos_validos = []
+    # Registrar el mapa de procesos para la clase en inventory
+    if procesos_lista:
+        from core.inventory import guardar_mapa_procesos_clase
+        guardar_mapa_procesos_clase(clase_doc_segura, procesos_lista)
+
+    ruta_destino = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_pendientes', clase_doc_segura)
+    os.makedirs(ruta_destino, exist_ok=True)
+
+    guardados = 0
     invalidos = 0
     for archivo in archivos:
         if archivo.filename:
             filename = secure_filename(archivo.filename)
             if extension_permitida(filename):
-                archivos_validos.append((filename, archivo.read()))
+                ruta_archivo = os.path.join(ruta_destino, filename)
+                archivo.save(ruta_archivo)
+                guardados += 1
             else:
                 invalidos += 1
 
-    guardados = 0
-    for sp in lista_subprocesos:
-        ruta_destino = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_entrenamiento', matriz, sp, clase_doc_segura)
-        os.makedirs(ruta_destino, exist_ok=True)
-        
-        for filename, datos in archivos_validos:
-            ruta_archivo = os.path.join(ruta_destino, filename)
-            with open(ruta_archivo, 'wb') as f:
-                f.write(datos)
-            guardados += 1
-
-    subprocesos_str = ", ".join(lista_subprocesos)
-    mensaje = f"✅ Éxito: Se guardaron {guardados} archivos en total para los subprocesos [{subprocesos_str}] en la categoría '{clase_doc_segura}'."
+    str_proc = f" (Procesos: {', '.join(procesos_lista)})" if procesos_lista else ""
+    mensaje = f"✅ Éxito: Se subieron {guardados} archivo(s) para la clase '{clase_doc_segura}'{str_proc}."
     if invalidos:
-        mensaje += f" ({invalidos} archivo(s) inválido(s) omitido(s). Use TIF, PDF, JPG o PNG)."
+        mensaje += f" ({invalidos} archivo(s) con formato no válido omitido(s))."
 
     flash(mensaje, "success")
     return redirect(url_for('admin'))
@@ -569,37 +751,45 @@ def exportar_ia():
     if session['rol'] != 'superadmin':
         flash("Acceso denegado.", "danger")
         return redirect(url_for('dashboard'))
-    
+
     import shutil
     import time
     import tempfile
-    
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
     ruta_cerebros = os.path.join(base_dir, '..', 'volumen_compartido', 'cerebros_ia')
-    ruta_processed = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_entrenamiento', 'processed')
-    
+    ruta_dataset_global = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_global')
+
     try:
-        # Crear una carpeta temporal que contenga ambas fuentes de conocimiento
         tmp_export_dir = os.path.join(tempfile.gettempdir(), f'ia_export_{int(time.time())}')
         os.makedirs(tmp_export_dir, exist_ok=True)
-        
-        # 1. Copiar los cerebros compilados (modelo.pkl + vectorizador.pkl)
+
+        # 1. Exportar el cerebro universal (modelo_cdc_global.pkl y vectorizador_cdc_global.pkl)
         if os.path.isdir(ruta_cerebros):
-            shutil.copytree(ruta_cerebros, os.path.join(tmp_export_dir, 'cerebros_ia'))
-        
-        # 2. Copiar los datos históricos de entrenamiento (textos cacheados para reentrenar)
-        if os.path.isdir(ruta_processed):
-            shutil.copytree(ruta_processed, os.path.join(tmp_export_dir, 'processed'))
-        
-        ruta_zip_salida = os.path.join(tempfile.gettempdir(), f'cerebros_ia_export_{int(time.time())}')
+            dst_cerebros = os.path.join(tmp_export_dir, 'cerebros_ia')
+            os.makedirs(dst_cerebros, exist_ok=True)
+            for f in ["modelo_cdc_global.pkl", "vectorizador_cdc_global.pkl"]:
+                p_f = os.path.join(ruta_cerebros, f)
+                if os.path.exists(p_f):
+                    shutil.copy2(p_f, dst_cerebros)
+
+        # 2. Exportar el dataset global unificado
+        if os.path.isdir(ruta_dataset_global):
+            shutil.copytree(ruta_dataset_global, os.path.join(tmp_export_dir, 'dataset_global'))
+
+        # 3. Exportar el mapa dinámico de procesos (procesos_map.json)
+        ruta_mapa = os.path.join(base_dir, '..', 'volumen_compartido', 'procesos_map.json')
+        if os.path.exists(ruta_mapa):
+            shutil.copy2(ruta_mapa, tmp_export_dir)
+
+        ruta_zip_salida = os.path.join(tempfile.gettempdir(), f'cerebro_universal_export_{int(time.time())}')
         shutil.make_archive(ruta_zip_salida, 'zip', tmp_export_dir)
         archivo_final = ruta_zip_salida + '.zip'
-        
-        # Limpiar la carpeta temporal de montaje
+
         shutil.rmtree(tmp_export_dir, ignore_errors=True)
-        
-        logging.info(f"[SUPERADMIN] {session['usuario']} exportó los conocimientos de la IA (cerebros + datos históricos).")
-        return send_file(archivo_final, as_attachment=True, download_name='Conocimiento_IA_Exportado.zip')
+
+        logging.info(f"[SUPERADMIN] {session['usuario']} exportó el Cerebro Universal y su Dataset Global.")
+        return send_file(archivo_final, as_attachment=True, download_name='Cerebro_Universal_CDC.zip')
     except Exception as e:
         flash(f"Error al generar exportación: {e}", "danger")
         return redirect(url_for('superadmin'))
@@ -610,102 +800,77 @@ def importar_ia():
     if session['rol'] != 'superadmin':
         flash("Acceso denegado.", "danger")
         return redirect(url_for('dashboard'))
-        
+
     archivo_zip = request.files.get('archivo_zip')
     if not archivo_zip or not archivo_zip.filename.endswith('.zip'):
         flash("Por favor sube un archivo .zip válido.", "danger")
         return redirect(url_for('superadmin'))
-        
+
     import shutil
     import tempfile
-    
+    import zipfile
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
     ruta_cerebros = os.path.join(base_dir, '..', 'volumen_compartido', 'cerebros_ia')
-    ruta_processed = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_entrenamiento', 'processed')
+    ruta_dataset_global = os.path.join(base_dir, '..', 'volumen_compartido', 'dataset_global')
     os.makedirs(ruta_cerebros, exist_ok=True)
-    os.makedirs(ruta_processed, exist_ok=True)
-    
+    os.makedirs(ruta_dataset_global, exist_ok=True)
+
     try:
-        import zipfile
         tmp_path = os.path.join(tempfile.gettempdir(), secure_filename(archivo_zip.filename))
         archivo_zip.save(tmp_path)
-        
-        # Validar el contenido del ZIP para prevenir Path Traversal / Zip Slip
+
         with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
             for member in zip_ref.namelist():
                 if member.startswith('/') or '..' in member:
-                    raise ValueError(f"Archivo sospechoso en el ZIP (Posible Path Traversal): {member}")
-            
-            # Extraer a carpeta temporal para clasificar el contenido
+                    raise ValueError(f"Archivo sospechoso en el ZIP: {member}")
+
             tmp_extract = os.path.join(tempfile.gettempdir(), f'ia_import_{os.getpid()}')
             zip_ref.extractall(tmp_extract)
-        
+
         os.remove(tmp_path)
-        
-        # Detectar si es el formato nuevo (con subcarpetas cerebros_ia/ y processed/)
+
+        # Restaurar cerebros universales
         ruta_cerebros_zip = os.path.join(tmp_extract, 'cerebros_ia')
-        ruta_processed_zip = os.path.join(tmp_extract, 'processed')
-        
         if os.path.isdir(ruta_cerebros_zip):
-            # FORMATO NUEVO: El ZIP tiene carpetas separadas
-            # 1. Copiar cerebros compilados
             for item in os.listdir(ruta_cerebros_zip):
                 src = os.path.join(ruta_cerebros_zip, item)
                 dst = os.path.join(ruta_cerebros, item)
-                if os.path.isdir(src):
-                    if os.path.exists(dst):
-                        shutil.rmtree(dst)
-                    shutil.copytree(src, dst)
-                else:
+                if os.path.isfile(src):
                     shutil.copy2(src, dst)
-            
-            # 2. Copiar datos históricos de entrenamiento (para que el reentrenamiento los use)
-            if os.path.isdir(ruta_processed_zip):
-                for item in os.listdir(ruta_processed_zip):
-                    src = os.path.join(ruta_processed_zip, item)
-                    dst = os.path.join(ruta_processed, item)
-                    if os.path.isdir(src):
-                        # Fusionar: si la carpeta ya existe, copiar archivos nuevos sin borrar los existentes
-                        if os.path.exists(dst):
-                            for sub_item in os.listdir(src):
-                                sub_src = os.path.join(src, sub_item)
-                                sub_dst = os.path.join(dst, sub_item)
-                                if os.path.isdir(sub_src):
-                                    if not os.path.exists(sub_dst):
-                                        shutil.copytree(sub_src, sub_dst)
-                                    else:
-                                        # Fusionar archivos individuales dentro de la clase
-                                        for f in os.listdir(sub_src):
-                                            shutil.copy2(os.path.join(sub_src, f), os.path.join(sub_dst, f))
-                                else:
-                                    shutil.copy2(sub_src, sub_dst)
-                        else:
-                            shutil.copytree(src, dst)
-                    else:
-                        shutil.copy2(src, dst)
-                
-                logging.info(f"[IMPORTAR] Datos históricos de entrenamiento restaurados en {ruta_processed}")
-        else:
-            # FORMATO ANTIGUO (retrocompatibilidad): El ZIP solo tenía los .pkl sueltos
-            for item in os.listdir(tmp_extract):
-                src = os.path.join(tmp_extract, item)
-                dst = os.path.join(ruta_cerebros, item)
-                if os.path.isdir(src):
-                    if os.path.exists(dst):
-                        shutil.rmtree(dst)
-                    shutil.copytree(src, dst)
-                else:
-                    shutil.copy2(src, dst)
-        
-        # Limpiar carpeta temporal de extracción
+
+        # Restaurar dataset_global
+        ruta_global_zip = os.path.join(tmp_extract, 'dataset_global')
+        if os.path.isdir(ruta_global_zip):
+            for clase in os.listdir(ruta_global_zip):
+                src_clase = os.path.join(ruta_global_zip, clase)
+                dst_clase = os.path.join(ruta_dataset_global, clase)
+                if os.path.isdir(src_clase):
+                    os.makedirs(dst_clase, exist_ok=True)
+                    for f in os.listdir(src_clase):
+                        shutil.copy2(os.path.join(src_clase, f), os.path.join(dst_clase, f))
+
+        # Restaurar mapa de procesos si existe en el ZIP
+        src_mapa = os.path.join(tmp_extract, 'procesos_map.json')
+        dst_mapa = os.path.join(base_dir, '..', 'volumen_compartido', 'procesos_map.json')
+        if os.path.isfile(src_mapa):
+            shutil.copy2(src_mapa, dst_mapa)
+            try:
+                os.chmod(dst_mapa, 0o777)
+            except Exception:
+                pass
+
         shutil.rmtree(tmp_extract, ignore_errors=True)
-        
-        flash("✅ Modelos de IA importados e instalados correctamente (cerebros + datos históricos).", "success")
-        logging.info(f"[SUPERADMIN] {session['usuario']} importó un paquete de conocimiento IA (formato {'nuevo' if os.path.isdir(ruta_cerebros_zip) else 'legacy'}).")
+
+        from core.routing_ia import limpiar_cache
+        limpiar_cache()
+
+        flash("✅ Cerebro Universal e inventario global importados correctamente.", "success")
+        logging.info(f"[SUPERADMIN] {session['usuario']} importó el Cerebro Universal.")
     except Exception as e:
-        flash(f"❌ Error al importar IA: {e}", "danger")
+        flash(f"❌ Error al importar Cerebro Universal: {e}", "danger")
         logging.error(f"Error importando IA: {e}")
-        
+
     return redirect(url_for('superadmin'))
 
 @app.route('/superadmin/borrar_todo', methods=['POST'])
@@ -715,6 +880,11 @@ def borrar_todo():
         flash("Acceso denegado.", "danger")
         return redirect(url_for('dashboard'))
     errores = borrar_todo_el_conocimiento()
+    try:
+        from core.routing_ia import limpiar_cache
+        limpiar_cache()
+    except Exception:
+        pass
     if errores:
         flash(f"⚠️ Borrado completado con advertencias: {'; '.join(errores)}", "warning")
     else:
@@ -748,30 +918,27 @@ def borrar_clase():
     if session['rol'] != 'superadmin':
         flash("Acceso denegado.", "danger")
         return redirect(url_for('dashboard'))
-    matriz = request.form.get('matriz', '').strip().replace('/', '').replace('\\', '').replace('..', '')
-    proceso = request.form.get('proceso', '').strip().replace('/', '').replace('\\', '').replace('..', '')
     clase = request.form.get('clase', '').strip().replace('/', '').replace('\\', '').replace('..', '')
-    if not matriz or not proceso or not clase:
+    if not clase:
         flash("Parámetros inválidos.", "danger")
         return redirect(request.referrer or url_for('superadmin'))
-    errores = borrar_conocimiento_clase(matriz, proceso, clase)
-    nombre_matriz = 'Natural' if matriz == 'BT' else ('Jurídico' if matriz == 'BR' else matriz)
-    
-    # Disparar reentrenamiento automático para regenerar el cerebro sin esa clase
+    errores = borrar_conocimiento_clase_global(clase)
+
+    # Disparar reentrenamiento automático para regenerar el cerebro universal sin esa clase
     try:
         from core.routing_ia import limpiar_cache
-        limpiar_cache(matriz, proceso)  # Limpiar RAM para no usar cerebro viejo
+        limpiar_cache()  # Limpiar caché del modelo universal en RAM
         set_estado('progreso_entrenamiento', '0')
         set_estado('entrenamiento', 'PROCESANDO')
-        logging.info(f"🔄 Reentrenamiento automático disparado tras borrar clase '{clase}' de {matriz}/{proceso}.")
+        logging.info(f"🔄 Reentrenamiento automático disparado tras borrar clase '{clase}' del cerebro universal.")
     except Exception as e:
         logging.error(f"Error disparando reentrenamiento tras borrar clase: {e}")
-    
+
     if errores:
-        flash(f"⚠️ Clase '{clase}' del proceso {proceso} ({nombre_matriz}) borrada con advertencias: {'; '.join(errores)}", "warning")
+        flash(f"⚠️ Clase '{clase}' borrada con advertencias: {'; '.join(errores)}", "warning")
     else:
-        flash(f"✅ Clase '{clase}' del proceso {proceso} ({nombre_matriz}) eliminada. La IA se está reentrenando automáticamente.", "success")
-    logging.info(f"[SUPERADMIN] {session['usuario']} borró clase {clase} de {matriz}/{proceso}.")
+        flash(f"✅ Clase '{clase}' eliminada del cerebro universal. La IA se está reentrenando automáticamente.", "success")
+    logging.info(f"[SUPERADMIN] {session['usuario']} borró clase global '{clase}'.")
     return redirect(request.referrer or url_for('superadmin'))
 
 @app.route('/admin/descartar_clase', methods=['POST'])
@@ -780,24 +947,21 @@ def descartar_clase():
     if session['rol'] not in ['admin', 'superadmin']:
         flash("Acceso denegado.", "danger")
         return redirect(url_for('dashboard'))
-        
-    matriz = request.form.get('matriz', '').strip().replace('/', '').replace('\\', '').replace('..', '')
-    proceso = request.form.get('proceso', '').strip().replace('/', '').replace('\\', '').replace('..', '')
+
     clase = request.form.get('clase', '').strip().replace('/', '').replace('\\', '').replace('..', '')
-    
-    if not matriz or not proceso or not clase:
+
+    if not clase:
         flash("Parámetros inválidos.", "danger")
         return redirect(request.referrer or url_for('admin'))
-        
-    errores = descartar_subida_clase(matriz, proceso, clase)
-    nombre_matriz = 'Natural' if matriz == 'BT' else ('Jurídico' if matriz == 'BR' else matriz)
-    
+
+    errores = descartar_subida_clase_global(clase)
+
     if errores:
         flash(f"⚠️ Hubo problemas al descartar la clase '{clase}': {'; '.join(errores)}", "warning")
     else:
         flash(f"✅ Subida de la clase '{clase}' cancelada y removida del inventario.", "success")
-        
-    logging.info(f"[{session['rol'].upper()}] {session['usuario']} descartó subida de la clase {clase} de {matriz}/{proceso}.")
+
+    logging.info(f"[{session['rol'].upper()}] {session['usuario']} descartó subida de la clase global '{clase}'.")
     return redirect(request.referrer or url_for('admin'))
 
 @app.route('/superadmin/crear_usuario', methods=['POST'])

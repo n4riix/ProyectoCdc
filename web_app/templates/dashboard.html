@@ -19,14 +19,25 @@
         <div class="nav-controls">
             <button class="theme-toggle">🌗</button>
             <span>👤 {{ usuario }} ({{ rol }})</span>
-            <a href="/dashboard">🏠 Inicio</a>
-            {% if rol == 'superadmin' %}
-                <a href="/superadmin" style="color: #d9534f;">🛡️ Super Admin</a>
-                <a href="/admin">⚙️ Entrenar IA</a>
-            {% elif rol == 'admin' %}
+            <a href="/dashboard" class="nav-active" style="border-bottom: 2px solid var(--border-accent);">🏠 Inicio</a>
+            {% if rol in ['admin', 'superadmin'] %}
                 <a href="/admin">⚙️ Entrenar IA</a>
             {% endif %}
             <a href="/conocimiento">🧩 Conocimiento IA</a>
+            {% if rol == 'superadmin' %}
+                <div class="nav-dropdown">
+                    <a href="/superadmin#usuarios" class="nav-dropdown-toggle" style="color: #d9534f; font-weight: bold;">
+                        🛡️ Super Admin <span style="font-size: 0.75rem;">▼</span>
+                    </a>
+                    <div class="nav-dropdown-menu">
+                        <a href="/superadmin#tab-usuarios">👥 Gestión de Usuarios</a>
+                        <a href="/superadmin#tab-migracion">📦 Migración de Conocimiento IA</a>
+                        <a href="/superadmin#tab-desaprender">🧩 Desaprender Conocimientos</a>
+                        <div class="dropdown-divider"></div>
+                        <a href="/superadmin#tab-peligro" class="dropdown-danger" style="color: #ff7875;">☢️ Zona de Peligro (Reset)</a>
+                    </div>
+                </div>
+            {% endif %}
             <a href="/logout">🚪 Cerrar Sesión</a>
         </div>
     </div>
@@ -49,6 +60,58 @@
                 Corte: <span id="corte-numero">-</span> | Fecha: <span id="corte-fecha">-</span>
             </div>
             
+            <!-- ===== TARJETAS RESUMEN AUDITORÍA ===== -->
+            <div id="resumen-auditoria" style="display:none; margin-bottom: 18px;">
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-start;">
+
+                    <!-- CARD: Conformes -->
+                    <div id="card-ok" style="
+                        flex: 1; min-width: 140px; max-width: 200px;
+                        background: #d4edda; border: 1px solid #28a745;
+                        border-radius: 8px; padding: 14px 10px; text-align: center;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.08);">
+                        <div style="font-size: 28px; font-weight: 700; color: #155724;" id="card-ok-num">0</div>
+                        <div style="font-size: 12px; font-weight: 600; color: #155724; margin-top: 4px;">✔ Conformes</div>
+                        <div style="font-size: 11px; color: #6c757d; margin-top: 2px;">Match exacto ≥60%</div>
+                    </div>
+
+                    <!-- CARD: Discrepancias -->
+                    <div id="card-discrepancias" style="
+                        flex: 1; min-width: 140px; max-width: 200px;
+                        background: #f8d7da; border: 1px solid #dc3545;
+                        border-radius: 8px; padding: 14px 10px; text-align: center;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.08);">
+                        <div style="font-size: 28px; font-weight: 700; color: #721c24;" id="card-disc-num">0</div>
+                        <div style="font-size: 12px; font-weight: 600; color: #721c24; margin-top: 4px;">⚠ Discrepancias</div>
+                        <div style="font-size: 11px; color: #6c757d; margin-top: 2px;">Clasificación diferente</div>
+                    </div>
+
+                    <!-- CARD: Duda IA -->
+                    <div id="card-dudas" style="
+                        flex: 1; min-width: 140px; max-width: 200px;
+                        background: #fff3cd; border: 1px solid #ffc107;
+                        border-radius: 8px; padding: 14px 10px; text-align: center;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.08);">
+                        <div style="font-size: 28px; font-weight: 700; color: #856404;" id="card-duda-num">0</div>
+                        <div style="font-size: 12px; font-weight: 600; color: #856404; margin-top: 4px;">～ Duda IA</div>
+                        <div style="font-size: 11px; color: #6c757d; margin-top: 2px;">Confianza &lt; 60%</div>
+                    </div>
+
+                    <!-- CARD: Omitidos -->
+                    <div id="card-omitidos" style="
+                        flex: 1; min-width: 140px; max-width: 200px;
+                        background: #e2e3e5; border: 1px solid #6c757d;
+                        border-radius: 8px; padding: 14px 10px; text-align: center;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.08);">
+                        <div style="font-size: 28px; font-weight: 700; color: #383d41;" id="card-omit-num">0</div>
+                        <div style="font-size: 12px; font-weight: 600; color: #383d41; margin-top: 4px;">⛔ Omitidos</div>
+                        <div style="font-size: 11px; color: #6c757d; margin-top: 2px;">No entrenados / sin TIF</div>
+                    </div>
+
+                </div>
+            </div>
+            <!-- ===== FIN TARJETAS RESUMEN ===== -->
+
             <!-- Botones de acción post-auditoría -->
             <div id="botones-post" style="display: none; margin-bottom: 15px;">
                 <button id="btn-descargar-csv" class="btn btn-primary" style="margin-right: 10px;">📊 Descargar Reporte Excel (.xlsx)</button>
@@ -127,6 +190,8 @@
                         <tr style="border-bottom: 1px solid var(--input-border);"><td style="padding: 8px; font-weight: bold;">Matriz / Proceso:</td><td id="disc-ruta" style="padding: 8px;"></td></tr>
                         <tr style="border-bottom: 1px solid var(--input-border); background: rgba(217,83,79,0.1);"><td style="padding: 8px; font-weight: bold;">Operador Cdc dijo:</td><td id="disc-esperado" style="padding: 8px; color: #d9534f; font-weight: bold;"></td></tr>
                         <tr style="border-bottom: 1px solid var(--input-border); background: rgba(92,184,92,0.1);"><td style="padding: 8px; font-weight: bold;">IA Detectó:</td><td id="disc-prediccion" style="padding: 8px; color: #5cb85c; font-weight: bold;"></td></tr>
+                        <tr id="row-fecha-indice" style="border-bottom: 1px solid var(--input-border); display: none;"><td style="padding: 8px; font-weight: bold;">📅 Fecha en Índice:</td><td id="disc-fecha-indice" style="padding: 8px; font-weight: bold; color: #f0ad4e;"></td></tr>
+                        <tr id="row-fecha-doc" style="border-bottom: 1px solid var(--input-border); display: none;"><td style="padding: 8px; font-weight: bold; color: #d9534f;">📄 Fecha Detectada por IA:</td><td id="disc-fechas-doc" style="padding: 8px; color: #d9534f; font-weight: bold;"></td></tr>
                         {% if rol == 'superadmin' %}
                         <tr style="border-bottom: 1px solid var(--input-border);"><td style="padding: 8px; font-weight: bold;">Confianza IA:</td><td id="disc-confianza" style="padding: 8px;"></td></tr>
                         {% endif %}
@@ -207,15 +272,33 @@
                 
                 // Mostrar tiempos
                 if (data.lote) {
-                    const inicio = data.lote.fecha_inicio || 'N/A';
-                    const fin = data.lote.fecha_fin || 'N/A';
-                    if (inicio !== 'N/A' && fin !== 'N/A') {
-                        const durMs = new Date(fin) - new Date(inicio);
-                        const mins = Math.floor(durMs / 60000);
-                        const segs = Math.floor((durMs % 60000) / 1000);
-                        textoTiempo.innerHTML = `🕐 <strong>Inicio:</strong> ${inicio} | <strong>Fin:</strong> ${fin} | <strong>Duración:</strong> ${mins}m ${segs}s`;
+                    const inicioStr = data.lote.fecha_inicio || 'N/A';
+                    const finStr = data.lote.fecha_fin || 'N/A';
+                    
+                    if (inicioStr !== 'N/A' && finStr !== 'N/A') {
+                        const inicioDate = new Date(inicioStr.replace(' ', 'T'));
+                        const finDate = new Date(finStr.replace(' ', 'T'));
+                        const durMs = finDate - inicioDate;
+                        if (!isNaN(durMs) && durMs > 0) {
+                            const mins = Math.floor(durMs / 60000);
+                            const segs = Math.floor((durMs % 60000) / 1000);
+                            textoTiempo.innerHTML = `🕐 <strong>Inicio:</strong> ${inicioStr} | <strong>Fin:</strong> ${finStr} | <strong>Duración Total:</strong> ${mins}m ${segs}s`;
+                        } else {
+                            textoTiempo.innerHTML = `🕐 <strong>Inicio:</strong> ${inicioStr} | <strong>Fin:</strong> ${finStr}`;
+                        }
+                    } else if (inicioStr !== 'N/A') {
+                        const inicioDate = new Date(inicioStr.replace(' ', 'T'));
+                        const ahora = new Date();
+                        const durMs = ahora - inicioDate;
+                        if (!isNaN(durMs) && durMs > 0) {
+                            const mins = Math.floor(durMs / 60000);
+                            const segs = Math.floor((durMs % 60000) / 1000);
+                            textoTiempo.innerHTML = `🕐 <strong>Inicio:</strong> ${inicioStr} | <strong>Tiempo Transcurrido:</strong> ${mins}m ${segs}s (En Ejecución...)`;
+                        } else {
+                            textoTiempo.innerHTML = `🕐 <strong>Inicio:</strong> ${inicioStr} | <strong>En Ejecución...</strong>`;
+                        }
                     } else {
-                        textoTiempo.innerHTML = `🕐 <strong>Inicio:</strong> ${inicio} | <strong>Fin:</strong> ${fin}`;
+                        textoTiempo.innerHTML = `🕐 <strong>Inicio:</strong> N/A`;
                     }
                 }
                 
@@ -248,6 +331,34 @@
                 if (!hayDiscrepancias) {
                     document.getElementById('btn-revisar-discrepancias').style.display = 'none';
                 }
+
+                // ===== CALCULAR MÉTRICAS PARA TARJETAS VISUALES =====
+                const motivos_omision = new Set([
+                    "DOCUMENTO NO ENTRENADO",
+                    "ARCHIVO FÍSICO NO ENCONTRADO",
+                    "DOCUMENTO EN BLANCO / ILEGIBLE",
+                    "MODELO_NO_ENTRENADO"
+                ]);
+                let cOk = 0, cDisc = 0, cDuda = 0, cOmit = 0;
+                data.resultados.forEach(item => {
+                    const pred = (item.prediccion || item.prediccion_ia || '').trim();
+                    const est  = (item.estado || '').toLowerCase();
+                    if (motivos_omision.has(pred)) {
+                        cOmit++;
+                    } else if (pred.startsWith('DUDA IA')) {
+                        cDuda++;
+                    } else if (est === 'danger') {
+                        cDisc++;
+                    } else {
+                        cOk++;
+                    }
+                });
+                document.getElementById('card-ok-num').innerText   = cOk;
+                document.getElementById('card-disc-num').innerText = cDisc;
+                document.getElementById('card-duda-num').innerText = cDuda;
+                document.getElementById('card-omit-num').innerText = cOmit;
+                document.getElementById('resumen-auditoria').style.display = 'block';
+                // ===== FIN MÉTRICAS =====
             });
         }
 
@@ -291,18 +402,49 @@
             document.getElementById('disc-ruta').innerText = `${d.matriz} - ${d.subproceso}`;
             document.getElementById('disc-esperado').innerText = d.esperado;
             document.getElementById('disc-prediccion').innerText = d.prediccion;
+            let fDoc = d.fechas_documento || '';
+            if (Array.isArray(fDoc)) {
+                fDoc = fDoc.join(', ');
+            }
+            
+            // Fechas desactivadas en Fase 1: se ocultan siempre
+            const trFechaIndice = document.getElementById('row-fecha-indice');
+            const trFechaDoc = document.getElementById('row-fecha-doc');
+            if (trFechaIndice) trFechaIndice.style.display = 'none';
+            if (trFechaDoc) trFechaDoc.style.display = 'none';
+
             document.getElementById('disc-confianza').innerText = d.confianza != null ? parseFloat(d.confianza).toFixed(1) + '%' : '-';
             
-            // Poblar dropdown de clases manualmente si conocemos la matriz y subproceso
+            // Poblar dropdown de clases para selección manual (Cerebro Universal y por proceso)
             const selectClase = document.getElementById('disc-select-clase');
             selectClase.innerHTML = '';
-            if(modelosConocidos[d.matriz] && modelosConocidos[d.matriz][d.subproceso]) {
-                const clases = modelosConocidos[d.matriz][d.subproceso].clases || modelosConocidos[d.matriz][d.subproceso];
-                clases.forEach(c => {
+            
+            let clasesDisponibles = [];
+            if (Array.isArray(modelosConocidos)) {
+                // Formato actual: lista de {clase: '...', procesos: [...]}
+                const subp = (d.subproceso || '').toUpperCase();
+                // Priorizar clases que apliquen a este subproceso
+                const especificas = modelosConocidos.filter(item => item.procesos && item.procesos.includes(subp)).map(item => item.clase);
+                if (especificas.length > 0) {
+                    clasesDisponibles = especificas;
+                } else {
+                    clasesDisponibles = modelosConocidos.map(item => item.clase);
+                }
+            } else if (modelosConocidos && typeof modelosConocidos === 'object') {
+                if (modelosConocidos[d.matriz] && modelosConocidos[d.matriz][d.subproceso]) {
+                    clasesDisponibles = modelosConocidos[d.matriz][d.subproceso].clases || modelosConocidos[d.matriz][d.subproceso];
+                }
+            }
+            
+            // Asegurar que las clases sean únicas y ordenadas
+            clasesDisponibles = [...new Set(clasesDisponibles)].sort();
+            
+            if (clasesDisponibles.length > 0) {
+                clasesDisponibles.forEach(c => {
                     const option = document.createElement('option');
                     option.value = c;
                     option.text = c;
-                    if(c === d.prediccion) option.selected = true;
+                    if (c === d.prediccion) option.selected = true;
                     selectClase.appendChild(option);
                 });
             } else {
@@ -473,7 +615,7 @@
                     }
                 })
                 .catch(e => console.log("Polling error:", e));
-            }, 5000);
+            }, 2000);
         }
 
         // --- LANZAR AUDITORÍA ---

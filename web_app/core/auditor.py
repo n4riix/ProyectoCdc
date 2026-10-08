@@ -18,7 +18,8 @@ from .db_models import (
     obtener_lineas_procesadas,
     obtener_conexion,
     obtener_cursor,
-    fetchone_dict
+    fetchone_dict,
+    execute_query
 )
 
 def _actualizar_conteo_global(task_id_str):
@@ -26,16 +27,16 @@ def _actualizar_conteo_global(task_id_str):
     try:
         conn = obtener_conexion()
         cursor = obtener_cursor(conn)
-        cursor.execute("SELECT COUNT(*) as total FROM auditoria_resultados WHERE auditoria_id = ?", (task_id_str,))
+        execute_query(cursor, "SELECT COUNT(*) as total FROM auditoria_resultados WHERE auditoria_id = ?", (task_id_str,))
         row = fetchone_dict(cursor)
         total = row['total'] if row else 0
-        cursor.execute("UPDATE auditorias_lotes SET documentos_procesados = ? WHERE id = ?", (total, task_id_str))
+        execute_query(cursor, "UPDATE auditorias_lotes SET documentos_procesados = ? WHERE id = ?", (total, task_id_str))
         
-        cursor.execute("SELECT total_documentos, estado FROM auditorias_lotes WHERE id = ?", (task_id_str,))
+        execute_query(cursor, "SELECT total_documentos, estado FROM auditorias_lotes WHERE id = ?", (task_id_str,))
         row_lote = fetchone_dict(cursor)
         if row_lote and total >= row_lote['total_documentos'] and row_lote['estado'] == 'procesando':
-            cursor.execute("UPDATE auditorias_lotes SET estado = 'completado', fecha_fin = CURRENT_TIMESTAMP WHERE id = ?", (task_id_str,))
-            cursor.execute("DELETE FROM estado_sistema WHERE clave = 'tarea_auditoria_activa'")
+            execute_query(cursor, "UPDATE auditorias_lotes SET estado = 'completado', fecha_fin = CURRENT_TIMESTAMP WHERE id = ?", (task_id_str,))
+            execute_query(cursor, "DELETE FROM estado_sistema WHERE clave = 'tarea_auditoria_activa'")
 
         conn.commit()
         conn.close()

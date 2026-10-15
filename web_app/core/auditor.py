@@ -4,6 +4,14 @@ import csv
 import logging
 import uuid
 import shutil
+import unicodedata
+
+def _normalizar_nombre_clase(nombre):
+    if not nombre:
+        return ""
+    s = unicodedata.normalize("NFD", str(nombre))
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return s.replace("/", " ").replace("_", " ").lower().strip()
 from datetime import datetime
 from celery_app import celery
 from .ocr_engine import obtener_motor_ocr
@@ -72,7 +80,7 @@ def procesar_rango_kofax_task(self, task_id_str, lineas_rango):
         clases_raw = obtener_clases_modelo_universal()
         clases_conocidas_set = set(clases_raw)
         # Diccionario de equivalencia normalizada para soportar variaciones con '/' o espacios
-        mapa_clases_norm = {c.replace('/', ' ').replace('_', ' ').lower(): c for c in clases_raw}
+        mapa_clases_norm = {_normalizar_nombre_clase(c): c for c in clases_raw}
 
         procesados_locales = 0
 
@@ -99,7 +107,7 @@ def procesar_rango_kofax_task(self, task_id_str, lineas_rango):
                     archivo += '.TIF'
 
                 # Validación con el Cerebro Universal Global (con soporte de normalización)
-                tipo_esperado_norm = tipo_esperado.replace('/', ' ').replace('_', ' ').lower()
+                tipo_esperado_norm = _normalizar_nombre_clase(tipo_esperado)
                 clase_canonica = tipo_esperado if tipo_esperado in clases_conocidas_set else mapa_clases_norm.get(tipo_esperado_norm)
                 if clases_conocidas_set and not clase_canonica:
                     guardar_resultado_auditoria(task_id_str, numero_linea, archivo or f"Linea_{numero_linea}", matriz, subproceso, tipo_esperado, "DOCUMENTO NO ENTRENADO", "warning", 0.0, fecha_indice=fecha_indice_raw)
@@ -141,7 +149,7 @@ def procesar_rango_kofax_task(self, task_id_str, lineas_rango):
                     # Si no alcanza el 60% de certeza, se emite alerta por baja confianza para revisión manual
                     estado = "warning"
                     prediccion = f"DUDA IA ({confianza_pct}%): {prediccion}"
-                elif prediccion == tipo_esperado or (clase_canonica and prediccion == clase_canonica):
+                elif prediccion == tipo_esperado or (clase_canonica and prediccion == clase_canonica) or (_normalizar_nombre_clase(prediccion) == tipo_esperado_norm):
                     estado = "success"
                 else:
                     estado = "danger"

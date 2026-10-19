@@ -44,7 +44,7 @@ with open(os.path.join(DATA_DIR, "val.json"), "r", encoding="utf-8") as f:
 
 def tokenize_func(examples):
     # Truncar a 256 tokens para no desbordar VRAM de 4GB y enfocarse en el preámbulo legal
-    return tokenizer(examples["text"], padding="max_length", truncation=True, max_length=256)
+    return tokenizer(examples["text"], padding="max_length", truncation=True, max_length=160)
 
 train_ds = Dataset.from_list(raw_train).map(tokenize_func, batched=True)
 val_ds = Dataset.from_list(raw_val).map(tokenize_func, batched=True)
@@ -77,9 +77,9 @@ training_args = TrainingArguments(
     eval_strategy="epoch",
     save_strategy="epoch",
     learning_rate=3e-5,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
-    gradient_accumulation_steps=2,
+    per_device_train_batch_size=4,
+    per_device_eval_batch_size=4,
+    gradient_accumulation_steps=4,
     num_train_epochs=4,
     weight_decay=0.01,
     fp16=True,  # Aceleración por precisión mixta en NVIDIA Turing GTX 1650 Ti

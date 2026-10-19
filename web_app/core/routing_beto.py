@@ -5,6 +5,60 @@ import torch
 
 logger = logging.getLogger(__name__)
 
+import re
+
+def _extraer_contenido_relevante(txt):
+    if not txt:
+        return ''
+    txt_limpio = re.sub(r'la pub desde su emisi[oó]n tiene una vigencia[^\.
+]{0,250}', ' ', txt, flags=re.IGNORECASE)
+    txt_limpio = re.sub(r'ministerio del poder popular para relaciones interiores[^\.
+]{0,100}', ' ', txt_limpio, flags=re.IGNORECASE)
+    txt_limpio = re.sub(r'servicio aut[oó]nomo de registros y notar[ií]as[^\.
+]{0,100}', ' ', txt_limpio, flags=re.IGNORECASE)
+    
+    patrones_juridicos = [
+        r'(asamblea\s+general\s+extraordinaria[^\.
+]{0,80})',
+        r'(asamblea\s+general\s+ordinaria[^\.
+]{0,80})',
+        r'(reuni[oó]n\s+de\s+junta\s+directiva[^\.
+]{0,80})',
+        r'(sesi[oó]n\s+de\s+junta\s+directiva[^\.
+]{0,80})',
+        r'(documento\s+constitutivo[^\.
+]{0,80})',
+        r'(estatutos\s+sociales[^\.
+]{0,80})',
+        r'(aumento\s+de\s+capital[^\.
+]{0,80})',
+        r'(modificaci[oó]n\s+de\s+estatutos[^\.
+]{0,80})',
+        r'(venta\s+de\s+acciones[^\.
+]{0,80})',
+        r'(cesi[oó]n\s+de\s+cuotas[^\.
+]{0,80})',
+        r'(cesi[oó]n\s+de\s+acciones[^\.
+]{0,80})',
+        r'(designaci[oó]n\s+de\s+junta[^\.
+]{0,80})',
+        r'(se\s+constituye\s+una\s+sociedad[^\.
+]{0,80})',
+        r'(comparecieron\s+[^\.
+]{0,60})',
+        r'(ciudadan[oa]\s+registrador[^\.
+]{0,60})'
+    ]
+    txt_lower = txt_limpio.lower()
+    hallazgos = []
+    for pat in patrones_juridicos:
+        for m in re.finditer(pat, txt_lower):
+            if m.start() < 3000:
+                hallazgos.append(m.start())
+    if hallazgos:
+        return txt_limpio[min(hallazgos):].strip()
+    return txt_limpio.strip()
+
 # Rutas del modelo BETO
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CEREBRO_BETO_DIR = os.path.join(BASE_DIR, "cerebro_beto")
@@ -84,8 +138,9 @@ def predecir_documento_beto(texto, *args, max_tokens=160, **kwargs):
 
     try:
         # Tokenización truncada enfocada en la carátula y cláusulas iniciales
+        texto_procesado = _extraer_contenido_relevante(texto)
         inputs = tokenizer(
-            texto,
+            texto_procesado,
             truncation=True,
             max_length=max_tokens,
             return_tensors="pt"

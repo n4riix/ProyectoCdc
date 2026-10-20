@@ -48,6 +48,7 @@
             <p>La Inteligencia Artificial está lista para procesar los expedientes de Cdc almacenados en el servidor seguro de Intexus.</p>
             
             <button id="btn-auditar" class="btn btn-success" style="margin-right: 10px;">▶️ Iniciar Auditoría de Lote Actual</button>
+            <button type="button" id="btn-abrir-filtro" class="btn" style="background-color: #17a2b8; color: white; margin-right: 10px;">🔍 Filtrar Tipos Documentales <span id="badge-filtro" style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 10px; font-size: 11px; margin-left: 5px;">Todos</span></button>
             <button id="btn-historial" class="btn btn-primary">Ver Historial de Auditorías</button>
         </div>
 
@@ -225,10 +226,162 @@
         </div>
     </div>
 
+
+    <!-- ===== MODAL FILTRO DE TIPOS DOCUMENTALES ===== -->
+    <div id="modal-filtro-clases" class="modal" style="display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(3px);">
+        <div class="modal-content" style="background-color: var(--bg-card); color: var(--text-main); margin: 3% auto; padding: 25px; border: 1px solid var(--border-color); width: 90%; max-width: 850px; border-radius: 10px; box-shadow: 0 8px 25px rgba(0,0,0,0.4);">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px;">
+                <h3 style="margin: 0; color: #28a745;">🔍 Selección de Tipos Documentales a Auditar</h3>
+                <span id="btn-cerrar-modal-filtro" style="font-size: 26px; font-weight: bold; cursor: pointer; color: var(--text-muted);">&times;</span>
+            </div>
+            
+            <p style="margin-bottom: 12px; font-size: 14px; color: var(--text-muted);">
+                Puedes seleccionar únicamente los tipos documentales específicos que deseas validar o auditar en este corte. Por defecto se auditan todos los documentos.
+            </p>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center;">
+                <input type="text" id="filtro-buscar-clase" placeholder="🔎 Buscar tipo documental..." style="flex: 1; min-width: 200px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-main);">
+                <button type="button" id="btn-sel-todas" class="btn btn-sm" style="background-color: #28a745; color: white; padding: 6px 12px; font-size: 13px;">✓ Seleccionar Todo</button>
+                <button type="button" id="btn-desel-todas" class="btn btn-sm" style="background-color: #6c757d; color: white; padding: 6px 12px; font-size: 13px;">✗ Desmarcar Todo</button>
+                <span id="contador-seleccionadas" style="font-size: 13px; font-weight: bold; color: #28a745;">54 seleccionadas</span>
+            </div>
+
+            <div id="contenedor-checkboxes-clases" style="max-height: 380px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; padding: 10px; background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-color);">
+                <!-- Se poblarán dinámicamente con JavaScript -->
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                <button type="button" id="btn-cancelar-filtro" class="btn btn-secondary">Cerrar</button>
+                <button type="button" id="btn-aplicar-filtro" class="btn btn-success" style="font-weight: bold;">💾 Aplicar Filtro para Auditoría</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     
     <script>
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        // ===== LOGICA DEL FILTRO DE CLASES DOCUMENTALES =====
+        let clasesSeleccionadas = null; // null = Todas
+        const modalFiltro = document.getElementById('modal-filtro-clases');
+        const btnAbrirFiltro = document.getElementById('btn-abrir-filtro');
+        const btnCerrarModalFiltro = document.getElementById('btn-cerrar-modal-filtro');
+        const btnCancelarFiltro = document.getElementById('btn-cancelar-filtro');
+        const btnAplicarFiltro = document.getElementById('btn-aplicar-filtro');
+        const btnSelTodas = document.getElementById('btn-sel-todas');
+        const btnDeselTodas = document.getElementById('btn-desel-todas');
+        const inputBuscarClase = document.getElementById('filtro-buscar-clase');
+        const contenedorCheckboxes = document.getElementById('contenedor-checkboxes-clases');
+        const contadorSeleccionadas = document.getElementById('contador-seleccionadas');
+        const badgeFiltro = document.getElementById('badge-filtro');
+
+        let listaNombresClases = [];
+        if (Array.isArray(modelosConocidos)) {
+            listaNombresClases = modelosConocidos.map(m => typeof m === 'object' ? (m.clase || m.nombre) : m);
+        } else if (typeof modelosConocidos === 'object') {
+            listaNombresClases = Object.keys(modelosConocidos);
+        }
+        listaNombresClases = Array.from(new Set(listaNombresClases)).filter(Boolean).sort();
+
+        function renderizarCheckboxesClases(filtroTexto = '') {
+            contenedorCheckboxes.innerHTML = '';
+            const txt = filtroTexto.toLowerCase().trim();
+            listaNombresClases.forEach(clase => {
+                if (txt && !clase.toLowerCase().includes(txt)) return;
+                
+                const checked = clasesSeleccionadas === null || clasesSeleccionadas.includes(clase);
+                const label = document.createElement('label');
+                label.style.display = 'flex';
+                label.style.alignItems = 'center';
+                label.style.gap = '8px';
+                label.style.fontSize = '12px';
+                label.style.cursor = 'pointer';
+                label.style.padding = '4px 6px';
+                label.style.borderRadius = '4px';
+                label.style.background = checked ? 'rgba(40, 167, 69, 0.1)' : 'transparent';
+                label.style.border = checked ? '1px solid rgba(40, 167, 69, 0.3)' : '1px solid transparent';
+                
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = clase;
+                cb.checked = checked;
+                cb.className = 'cb-clase-filtro';
+                cb.style.cursor = 'pointer';
+
+                cb.addEventListener('change', () => {
+                    label.style.background = cb.checked ? 'rgba(40, 167, 69, 0.1)' : 'transparent';
+                    label.style.border = cb.checked ? '1px solid rgba(40, 167, 69, 0.3)' : '1px solid transparent';
+                    actualizarContadorSeleccionadas();
+                });
+
+                label.appendChild(cb);
+                const span = document.createElement('span');
+                span.textContent = clase;
+                span.title = clase;
+                span.style.overflow = 'hidden';
+                span.style.textOverflow = 'ellipsis';
+                span.style.whiteSpace = 'nowrap';
+                label.appendChild(span);
+                contenedorCheckboxes.appendChild(label);
+            });
+            actualizarContadorSeleccionadas();
+        }
+
+        function actualizarContadorSeleccionadas() {
+            const allCbs = document.querySelectorAll('.cb-clase-filtro');
+            const checkedCbs = document.querySelectorAll('.cb-clase-filtro:checked');
+            contadorSeleccionadas.textContent = `${checkedCbs.length} de ${allCbs.length} seleccionadas`;
+        }
+
+        btnAbrirFiltro.addEventListener('click', () => {
+            renderizarCheckboxesClases(inputBuscarClase.value);
+            modalFiltro.style.display = 'block';
+        });
+
+        btnCerrarModalFiltro.addEventListener('click', () => { modalFiltro.style.display = 'none'; });
+        btnCancelarFiltro.addEventListener('click', () => { modalFiltro.style.display = 'none'; });
+
+        btnSelTodas.addEventListener('click', () => {
+            document.querySelectorAll('.cb-clase-filtro').forEach(cb => {
+                cb.checked = true;
+                cb.parentElement.style.background = 'rgba(40, 167, 69, 0.1)';
+                cb.parentElement.style.border = '1px solid rgba(40, 167, 69, 0.3)';
+            });
+            actualizarContadorSeleccionadas();
+        });
+
+        btnDeselTodas.addEventListener('click', () => {
+            document.querySelectorAll('.cb-clase-filtro').forEach(cb => {
+                cb.checked = false;
+                cb.parentElement.style.background = 'transparent';
+                cb.parentElement.style.border = '1px solid transparent';
+            });
+            actualizarContadorSeleccionadas();
+        });
+
+        inputBuscarClase.addEventListener('input', (e) => {
+            renderizarCheckboxesClases(e.target.value);
+        });
+
+        btnAplicarFiltro.addEventListener('click', () => {
+            const checked = Array.from(document.querySelectorAll('.cb-clase-filtro:checked')).map(cb => cb.value);
+            if (checked.length === 0) {
+                alert('⚠️ Debes seleccionar al menos un tipo documental o presionar "Seleccionar Todo".');
+                return;
+            }
+            if (checked.length === listaNombresClases.length) {
+                clasesSeleccionadas = null;
+                badgeFiltro.textContent = 'Todos';
+                badgeFiltro.style.background = 'rgba(0,0,0,0.3)';
+            } else {
+                clasesSeleccionadas = checked;
+                badgeFiltro.textContent = `${checked.length} clases`;
+                badgeFiltro.style.background = '#28a745';
+            }
+            modalFiltro.style.display = 'none';
+        });
+
         const modelosConocidos = {{ modelos_conocidos | tojson | safe if modelos_conocidos else '{}' }};
         const btnAuditar = document.getElementById('btn-auditar');
         const panelResultados = document.getElementById('panel-resultados');
@@ -632,7 +785,7 @@
             modalAuditoria.style.display = 'block';
             ultimoArchivo = "";
 
-            fetch('/api/auditar_lote', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
+            fetch('/api/auditar_lote', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }, body: JSON.stringify({ clases: clasesSeleccionadas }) })
             .then(res => res.json())
             .then(data => {
                 if(data.error) {

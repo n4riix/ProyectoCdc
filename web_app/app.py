@@ -210,7 +210,11 @@ def api_auditar_lote():
             return jsonify({"error": "Ya hay una auditoría en curso. Por favor espera a que termine para lanzar otra."}), 400
 
     task_id = str(uuid.uuid4())
-    procesar_lote_kofax_task.apply_async(args=[task_id], task_id=task_id)
+    data = request.get_json(silent=True) or {}
+    clases_filtro = data.get('clases', None)
+    if clases_filtro and not isinstance(clases_filtro, list):
+        clases_filtro = None
+    procesar_lote_kofax_task.apply_async(args=[task_id, clases_filtro], task_id=task_id)
     return jsonify({"status": "Lote enviado a procesamiento en segundo plano", "task_id": task_id})
 
 @app.route('/api/auditoria_resultados/<task_id>', methods=['GET'])
@@ -1023,7 +1027,11 @@ def cambiar_clave_route():
 def api_reanudar_lote(task_id):
     from core.auditor import procesar_lote_kofax_task
     # Volver a lanzar la misma tarea en Celery usando el ID existente
-    procesar_lote_kofax_task.apply_async(args=[task_id], task_id=task_id)
+    data = request.get_json(silent=True) or {}
+    clases_filtro = data.get('clases', None)
+    if clases_filtro and not isinstance(clases_filtro, list):
+        clases_filtro = None
+    procesar_lote_kofax_task.apply_async(args=[task_id, clases_filtro], task_id=task_id)
     logging.info(f"Reanudando auditoría lote: {task_id}")
     return jsonify({"mensaje": "Auditoría reanudada en segundo plano", "task_id": task_id})
 

@@ -175,7 +175,7 @@ def procesar_rango_kofax_task(self, task_id_str, lineas_rango):
         return {"status": "Error", "error": str(e)}
 
 @celery.task(bind=True, name="core.auditor.procesar_lote_kofax_task")
-def procesar_lote_kofax_task(self, task_id_str):
+def procesar_lote_kofax_task(self, task_id_str, clases_filtro=None):
     try:
         logging.info(f"🚀 [Orquestador Celery Parallel] Iniciando auditoría paralelizada para lote {task_id_str}...")
 
@@ -199,7 +199,10 @@ def procesar_lote_kofax_task(self, task_id_str):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         shutil.copy2(indice_path, os.path.join(backup_dir, f"{os.path.basename(indice_path)}.{timestamp}.bak"))
 
-        # Contar total de líneas válidas
+        # Contar total de líneas válidas (con soporte a filtro selectivo de clases)
+        set_filtro = set(clases_filtro) if clases_filtro else None
+        set_filtro_norm = {_normalizar_nombre_clase(c) for c in clases_filtro} if clases_filtro else None
+
         lineas_validas = []
         with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
             reader = csv.reader(f)
@@ -207,7 +210,13 @@ def procesar_lote_kofax_task(self, task_id_str):
             for row in reader:
                 num_linea += 1
                 if row and len(row) >= 16:
-                    lineas_validas.append(num_linea)
+                    if set_filtro:
+                        tipo_esp = row[14].strip() if len(row) > 14 else ''
+                        tipo_norm = _normalizar_nombre_clase(tipo_esp)
+                        if (tipo_esp in set_filtro) or (tipo_norm in set_filtro_norm):
+                            lineas_validas.append(num_linea)
+                    else:
+                        lineas_validas.append(num_linea)
 
         total_lineas = len(lineas_validas)
         indice_nombre = os.path.basename(indice_path)

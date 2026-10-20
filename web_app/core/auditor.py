@@ -15,7 +15,12 @@ def _normalizar_nombre_clase(nombre):
 from datetime import datetime
 from celery_app import celery
 from .ocr_engine import obtener_motor_ocr
-from .routing_ia import predecir_documento
+try:
+    from .routing_beto import predecir_documento_beto as predecir_documento
+except Exception as _err:
+    import logging
+    logging.warning(f'Fallback a TF-IDF: {_err}')
+    from .routing_ia import predecir_documento
 from .extractor_fechas import validar_coincidencia_fecha
 from .inventory import obtener_clases_modelo_universal
 from .db_models import (
@@ -35,7 +40,7 @@ def _actualizar_conteo_global(task_id_str):
     try:
         conn = obtener_conexion()
         cursor = obtener_cursor(conn)
-        execute_query(cursor, "SELECT COUNT(*) as total FROM auditoria_resultados WHERE auditoria_id = ?", (task_id_str,))
+        execute_query(cursor, "SELECT COUNT(DISTINCT linea_indice) as total FROM auditoria_resultados WHERE auditoria_id = ?", (task_id_str,))
         row = fetchone_dict(cursor)
         total = row['total'] if row else 0
         execute_query(cursor, "UPDATE auditorias_lotes SET documentos_procesados = ? WHERE id = ?", (total, task_id_str))
@@ -58,7 +63,7 @@ def procesar_rango_kofax_task(self, task_id_str, lineas_rango):
     """
     try:
         # lote_dir = '/volumen_compartido/lote_kofax'
-        lote_dir = '/mnt/lote_nuevo/Respaldo_ImagenesBBVA/Imagenes_30092026_Corte_131500'
+        lote_dir = '/mnt/lote_nuevo/Imagenes_16102026_Corte_215000'
         archivos_indice = [
             f for f in glob.glob(os.path.join(lote_dir, '*.[tT][xX][tT]'))
             if os.path.basename(f).lower().startswith('indice_')
@@ -175,7 +180,7 @@ def procesar_lote_kofax_task(self, task_id_str):
         logging.info(f"🚀 [Orquestador Celery Parallel] Iniciando auditoría paralelizada para lote {task_id_str}...")
 
         # lote_dir = '/volumen_compartido/lote_kofax'
-        lote_dir = '/mnt/lote_nuevo/Respaldo_ImagenesBBVA/Imagenes_30092026_Corte_131500'
+        lote_dir = '/mnt/lote_nuevo/Imagenes_16102026_Corte_215000'
         os.makedirs(lote_dir, exist_ok=True)
 
         archivos_indice = [

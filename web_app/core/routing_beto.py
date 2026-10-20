@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Rutas del modelo BETO y Especialista Notarial
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CEREBRO_BETO_DIR = os.path.join(BASE_DIR, "cerebro_beto")
+CEREBRO_BETO_DIR = "/cerebro_beto" if os.path.exists("/cerebro_beto") else os.path.join(BASE_DIR, "cerebro_beto")
 MODELO_BETO_PATH = os.path.join(CEREBRO_BETO_DIR, "modelo_beto_final")
 CATALOGO_ID2LABEL = os.path.join(CEREBRO_BETO_DIR, "dataset_procesado", "id2label.json")
 ESPECIALISTA_DIR = os.path.join(CEREBRO_BETO_DIR, "especialista_notarial")
@@ -146,6 +146,15 @@ def predecir_documento_beto(texto, *args, max_tokens=160, **kwargs):
             confianza = float(probabilidades[clase_id].item())
 
         clase_predicha = id2label.get(clase_id, "DESCONOCIDO")
+
+        # ── REGLAS DETERMINISTAS DE ALTA FIDELIDAD (Eliminar dudas recurrentes) ──
+        texto_u = texto.upper()
+        if "FICHA DE IDENTIFICACION" in texto_u or "COMPLEMENTO DE FICHA" in texto_u:
+            return "EXC FichaIdentificacionCliente", 0.99
+        elif ("SOLICITAR LA MOVILIZACI" in texto_u or "SOLICITUD DE MOVILIZACI" in texto_u or 
+              "INSTRUYO Y AUTORIZO A BANCO PROVINCIAL" in texto_u or "MODALIDAD ESTIPULADA PARA LA CUENTA" in texto_u or
+              "INSTRUCCIONES DE APERTURA" in texto_u or "MOVILIZACION DE CUENTA" in texto_u):
+            return "REC InstruccionesAperturaMovilizaciondeCuenta", 0.99
 
         # ── CAPA 2: Especialista Notarial para Documentos Complejos Extensos ──
         if clase_predicha in CLASES_NOTARIALES and mod_notarial and vec_notarial:

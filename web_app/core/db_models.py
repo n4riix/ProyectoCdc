@@ -421,6 +421,7 @@ def guardar_resultado_auditoria(task_id, linea_indice, archivo, matriz, subproce
     conn = obtener_conexion()
     cursor = obtener_cursor(conn)
     try:
+        execute_query(cursor, "DELETE FROM auditoria_resultados WHERE auditoria_id = ? AND linea_indice = ?", (task_id, linea_indice))
         execute_query(cursor, "INSERT INTO auditoria_resultados (auditoria_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza, fecha_indice, fechas_documento, coincidencia_fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (task_id, linea_indice, archivo, matriz, subproceso, esperado, prediccion, estado, confianza, fecha_indice, fechas_documento, coincidencia_fecha))
         conn.commit()
     except Exception as e:

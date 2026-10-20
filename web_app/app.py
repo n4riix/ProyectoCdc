@@ -458,13 +458,24 @@ def api_descargar_reporte(task_id):
         download_name=nombre_archivo
     )
 
+def _obtener_lote_dir_activo():
+    """Detecta la ruta del lote activo actualmente."""
+    rutas_candidatas = [
+        '/mnt/lote_nuevo/Imagenes_16102026_Corte_215000',
+        '/volumen_compartido/lote_kofax',
+        '/mnt/lote_nuevo/Respaldo_ImagenesBBVA/Imagenes_30092026_Corte_131500'
+    ]
+    for r in rutas_candidatas:
+        if os.path.isdir(r):
+            return r
+    return rutas_candidatas[0]
+
 @app.route('/api/imagen/<path:nombre_archivo>', methods=['GET'])
 @limiter.exempt
 @login_requerido
 def api_previsualizar_imagen(nombre_archivo):
     """Sirve una imagen del lote para previsualización en el navegador (convirtiendo TIF a JPEG si es necesario)."""
-    # lote_dir = '/volumen_compartido/lote_kofax'  # ORIGINAL - comentado temporalmente
-    lote_dir = '/mnt/lote_nuevo/Respaldo_ImagenesBBVA/Imagenes_30092026_Corte_131500'  # TEMPORAL: lote BBVA Septiembre
+    lote_dir = _obtener_lote_dir_activo()
     ruta = os.path.join(lote_dir, nombre_archivo)
     
     # Prevenir Path Traversal
@@ -499,6 +510,18 @@ def api_discrepancias(task_id):
     discrepancias = [r for r in resultados if r['estado'] == 'danger']
     return jsonify({"discrepancias": discrepancias})
 
+@app.route('/api/dudas/<task_id>', methods=['GET'])
+@login_requerido
+def api_dudas(task_id):
+    """Devuelve solo las filas con dudas de la IA (baja confianza < 60%) para validación manual."""
+    resultados = obtener_resultados_lote(task_id)
+    # Una duda está marcada como estado 'warning' y con prefijo 'DUDA IA'
+    dudas = [
+        r for r in resultados 
+        if r.get('estado') == 'warning' and str(r.get('prediccion', '')).startswith('DUDA IA')
+    ]
+    return jsonify({"dudas": dudas})
+
 @app.route('/api/aplicar_correcciones/<task_id>', methods=['POST'])
 @login_requerido
 def api_aplicar_correcciones(task_id):
@@ -510,8 +533,7 @@ def api_aplicar_correcciones(task_id):
     if not correcciones_aprobadas:
         return jsonify({"error": "No se recibieron correcciones para aplicar."}), 400
     
-    # lote_dir = '/volumen_compartido/lote_kofax'  # ORIGINAL - comentado temporalmente
-    lote_dir = '/mnt/lote_nuevo/Respaldo_ImagenesBBVA/Imagenes_30092026_Corte_131500'  # TEMPORAL: lote BBVA Septiembre
+    lote_dir = _obtener_lote_dir_activo()
     archivos_indice = [
         f for f in glob.glob(os.path.join(lote_dir, '*.[tT][xX][tT]'))
         if os.path.basename(f).lower().startswith('indice_')

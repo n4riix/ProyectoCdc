@@ -299,10 +299,28 @@ def borrar_conocimiento_clase_global(clase):
 
 def descartar_subida_clase_global(clase):
     errores = []
+    # 1. Borrar de dataset_pendientes
     r = os.path.join(DATASET_PENDIENTES_DIR, clase)
     err = _fuerza_borrado_ruta(r)
     if err:
         errores.append(err)
+
+    # 2. Borrar tambien de dataset_entrenamiento (legacy pendientes)
+    if os.path.isdir(DATASET_LEGACY_DIR):
+        for matriz in ['BT', 'BR']:
+            ruta_matriz = os.path.join(DATASET_LEGACY_DIR, matriz)
+            if os.path.isdir(ruta_matriz):
+                for subproceso in os.listdir(ruta_matriz):
+                    if subproceso == 'processed':
+                        continue
+                    ruta_sub = os.path.join(ruta_matriz, subproceso)
+                    if os.path.isdir(ruta_sub):
+                        ruta_clase = os.path.join(ruta_sub, clase)
+                        if os.path.exists(ruta_clase):
+                            err_legacy = _fuerza_borrado_ruta(ruta_clase)
+                            if err_legacy:
+                                errores.append(err_legacy)
+
     return errores
 
 

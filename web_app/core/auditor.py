@@ -143,20 +143,30 @@ def procesar_rango_kofax_task(self, task_id_str, lineas_rango):
 
                 confianza_pct = round(confianza * 100, 1)
 
-                # ── Reglas de Veredicto (Umbral de Confianza 60% - Sin alerta por discrepancia de fecha) ──
+                # ── Reglas de Veredicto ──
+                # REGLA DE ORO: Si lo que predijo la IA coincide con lo que dijo el Operador Cdc,
+                # se convalida como CONFORME (success) sin importar el porcentaje de confianza.
+                # Solo se marca como DUDA si la IA propone una clase diferente o está por debajo del 60%.
                 UMBRAL_CONFIANZA = 60.0
+                coincide_con_operador = (
+                    prediccion == tipo_esperado 
+                    or (clase_canonica and prediccion == clase_canonica) 
+                    or (_normalizar_nombre_clase(prediccion) == tipo_esperado_norm)
+                )
 
                 if prediccion == "MODELO_NO_ENTRENADO":
                     estado = "warning"
                 elif prediccion == "DOCUMENTO EN BLANCO / ILEGIBLE":
                     estado = "danger"
+                elif coincide_con_operador:
+                    # Ambas partes coinciden: Convalidación directa
+                    estado = "success"
                 elif confianza_pct < UMBRAL_CONFIANZA:
-                    # Si no alcanza el 60% de certeza, se emite alerta por baja confianza para revisión manual
+                    # La IA difiere del operador Y tiene baja confianza: es una DUDA para revisión humana
                     estado = "warning"
                     prediccion = f"DUDA IA ({confianza_pct}%): {prediccion}"
-                elif prediccion == tipo_esperado or (clase_canonica and prediccion == clase_canonica) or (_normalizar_nombre_clase(prediccion) == tipo_esperado_norm):
-                    estado = "success"
                 else:
+                    # La IA difiere del operador pero con alta confianza: es una DISCREPANCIA clara
                     estado = "danger"
 
                 guardar_resultado_auditoria(

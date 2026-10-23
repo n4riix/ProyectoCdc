@@ -1,4 +1,5 @@
 import os
+import glob
 import shutil
 import logging
 from logging.handlers import RotatingFileHandler
@@ -71,6 +72,9 @@ app.secret_key = os.environ.get('SECRET_KEY')
 # Blindaje: Si no hay llave, detenemos el sistema por seguridad
 if not app.secret_key:
     raise ValueError("🚨 ¡ALERTA DE SEGURIDAD! Falta la variable SECRET_KEY en el entorno.")
+
+# Evitar que el token CSRF expire mientras la sesión del usuario esté activa
+app.config['WTF_CSRF_TIME_LIMIT'] = None
 
 with app.app_context():
     inicializar_base_datos()
@@ -184,7 +188,7 @@ import uuid
 def api_estado_auditoria(task_id):
     estado = obtener_estado_lote(task_id)
     if not estado:
-        return jsonify({"archivo": "No encontrado", "procesados": 0, "meta": 0, "estado": "error"})
+        return jsonify({"archivo": "Iniciando...", "procesados": 0, "meta": 0, "estado": "procesando"})
     
     procesados_actual = estado['documentos_procesados'] or 0
     if estado['estado'] == 'completado':
@@ -214,6 +218,7 @@ def api_auditar_lote():
     clases_filtro = data.get('clases', None)
     if clases_filtro and not isinstance(clases_filtro, list):
         clases_filtro = None
+
     procesar_lote_kofax_task.apply_async(args=[task_id, clases_filtro], task_id=task_id)
     return jsonify({"status": "Lote enviado a procesamiento en segundo plano", "task_id": task_id})
 
@@ -460,15 +465,27 @@ def api_descargar_reporte(task_id):
 
 def _obtener_lote_dir_activo():
     """Detecta la ruta del lote activo actualmente."""
-    rutas_candidatas = [
-        '/mnt/lote_nuevo/Imagenes_16102026_Corte_215000',
-        '/volumen_compartido/lote_kofax',
-        '/mnt/lote_nuevo/Respaldo_ImagenesBBVA/Imagenes_30092026_Corte_131500'
-    ]
-    for r in rutas_candidatas:
-        if os.path.isdir(r):
-            return r
-    return rutas_candidatas[0]
+    base_lotes = '/mnt/lote_nuevo'
+    if os.path.isdir(base_lotes):
+        # 1. Si la raíz /mnt/lote_nuevo contiene directamente un archivo de índice
+        indices_raiz = [f for f in glob.glob(os.path.join(base_lotes, '*.[tT][xX][tT]')) if os.path.basename(f).lower().startswith('indice_')]
+        if indices_raiz:
+            return base_lotes
+
+        # 2. Si contiene subcarpetas con lotes
+        subdirs = [
+            os.path.join(base_lotes, d) for d in os.listdir(base_lotes)
+            if os.path.isdir(os.path.join(base_lotes, d))
+        ]
+        subdirs.sort(key=lambda d: os.path.getmtime(d), reverse=True)
+        for d in subdirs:
+            if any(f.lower().startswith('indice_') for f in os.listdir(d)):
+                return d
+        if subdirs:
+            return subdirs[0]
+        return base_lotes
+
+    return '/volumen_compartido/lote_kofax'
 
 @app.route('/api/imagen/<path:nombre_archivo>', methods=['GET'])
 @limiter.exempt

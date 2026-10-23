@@ -35,6 +35,30 @@ from .db_models import (
     execute_query
 )
 
+def _obtener_lote_dir_activo():
+    """Detecta la ruta del lote activo actualmente."""
+    base_lotes = '/mnt/lote_nuevo'
+    if os.path.isdir(base_lotes):
+        # 1. Si la raíz /mnt/lote_nuevo contiene directamente un archivo de índice
+        indices_raiz = [f for f in glob.glob(os.path.join(base_lotes, '*.[tT][xX][tT]')) if os.path.basename(f).lower().startswith('indice_')]
+        if indices_raiz:
+            return base_lotes
+
+        # 2. Si contiene subcarpetas con lotes
+        subdirs = [
+            os.path.join(base_lotes, d) for d in os.listdir(base_lotes)
+            if os.path.isdir(os.path.join(base_lotes, d))
+        ]
+        subdirs.sort(key=lambda d: os.path.getmtime(d), reverse=True)
+        for d in subdirs:
+            if any(f.lower().startswith('indice_') for f in os.listdir(d)):
+                return d
+        if subdirs:
+            return subdirs[0]
+        return base_lotes
+
+    return '/volumen_compartido/lote_kofax'
+
 def _actualizar_conteo_global(task_id_str):
     """Actualiza el total de documentos procesados en la base de datos."""
     try:
@@ -47,7 +71,7 @@ def _actualizar_conteo_global(task_id_str):
         
         execute_query(cursor, "SELECT total_documentos, estado FROM auditorias_lotes WHERE id = ?", (task_id_str,))
         row_lote = fetchone_dict(cursor)
-        if row_lote and total >= row_lote['total_documentos'] and row_lote['estado'] == 'procesando':
+        if row_lote and row_lote['total_documentos'] > 0 and total >= row_lote['total_documentos'] and row_lote['estado'] == 'procesando':
             execute_query(cursor, "UPDATE auditorias_lotes SET estado = 'completado', fecha_fin = CURRENT_TIMESTAMP WHERE id = ?", (task_id_str,))
             execute_query(cursor, "DELETE FROM estado_sistema WHERE clave = 'tarea_auditoria_activa'")
 
@@ -62,8 +86,7 @@ def procesar_rango_kofax_task(self, task_id_str, lineas_rango):
     Procesa un rango específico de números de línea en paralelo.
     """
     try:
-        # lote_dir = '/volumen_compartido/lote_kofax'
-        lote_dir = '/mnt/lote_nuevo/Imagenes_16102026_Corte_215000'
+        lote_dir = _obtener_lote_dir_activo()
         archivos_indice = [
             f for f in glob.glob(os.path.join(lote_dir, '*.[tT][xX][tT]'))
             if os.path.basename(f).lower().startswith('indice_')
@@ -89,8 +112,12 @@ def procesar_rango_kofax_task(self, task_id_str, lineas_rango):
 
         procesados_locales = 0
 
+        # FIX: Auto-detectar delimitador (tab vs coma) — consistente con el orquestador
+        with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f_detect:
+            primera_linea = f_detect.readline()
+            delimitador_rango = '\t' if '\t' in primera_linea else ','
         with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
-            reader = csv.reader(f)
+            reader = csv.reader(f, delimiter=delimitador_rango)
             numero_linea = 0
             for partes in reader:
                 numero_linea += 1
@@ -189,8 +216,7 @@ def procesar_lote_kofax_task(self, task_id_str, clases_filtro=None):
     try:
         logging.info(f"🚀 [Orquestador Celery Parallel] Iniciando auditoría paralelizada para lote {task_id_str}...")
 
-        # lote_dir = '/volumen_compartido/lote_kofax'
-        lote_dir = '/mnt/lote_nuevo/Imagenes_16102026_Corte_215000'
+        lote_dir = _obtener_lote_dir_activo()
         os.makedirs(lote_dir, exist_ok=True)
 
         archivos_indice = [
@@ -214,8 +240,15 @@ def procesar_lote_kofax_task(self, task_id_str, clases_filtro=None):
         set_filtro_norm = {_normalizar_nombre_clase(c) for c in clases_filtro} if clases_filtro else None
 
         lineas_validas = []
+        # FIX: Auto-detectar delimitador — el índice puede ser CSV (comas) o TSV (tabs).
+        # csv.reader por defecto usa comas; si el archivo es TSV, toda la línea queda en 1 columna
+        # y len(row) < 16 siempre, resultando en total_lineas=0.
+        with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f_detect:
+            primera_linea = f_detect.readline()
+            delimitador = '\t' if '\t' in primera_linea else ','
+        logging.info(f"[Orquestador] Índice detectado como {'TSV' if delimitador == chr(9) else 'CSV'} (delim={repr(delimitador)})")
         with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f:
-            reader = csv.reader(f)
+            reader = csv.reader(f, delimiter=delimitador)
             num_linea = 0
             for row in reader:
                 num_linea += 1
@@ -227,6 +260,36 @@ def procesar_lote_kofax_task(self, task_id_str, clases_filtro=None):
                             lineas_validas.append(num_linea)
                     else:
                         lineas_validas.append(num_linea)
+
+        # --- REINTENTO si total_lineas = 0 (puede ser falla transitoria de CIFS/SMB) ---
+        if len(lineas_validas) == 0:
+            logging.warning(f"[Orquestador] total_lineas=0 en primera lectura, reintentando en 5s...")
+            import time as _time
+            for _intento in range(2):
+                _time.sleep(5)
+                lineas_validas = []
+                try:
+                    with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f2:
+                        primera2 = f2.readline()
+                        delim2 = '\t' if '\t' in primera2 else ','
+                    with open(indice_path, 'r', encoding='utf-8', errors='ignore') as f2:
+                        reader2 = csv.reader(f2, delimiter=delim2)
+                        num2 = 0
+                        for row2 in reader2:
+                            num2 += 1
+                            if row2 and len(row2) >= 16:
+                                if set_filtro:
+                                    tipo2 = row2[14].strip() if len(row2) > 14 else ''
+                                    tipo2n = _normalizar_nombre_clase(tipo2)
+                                    if (tipo2 in set_filtro) or (tipo2n in set_filtro_norm):
+                                        lineas_validas.append(num2)
+                                else:
+                                    lineas_validas.append(num2)
+                    logging.info(f"[Orquestador] Reintento {_intento+1}: lineas_validas={len(lineas_validas)}")
+                    if lineas_validas:
+                        break
+                except Exception as _e:
+                    logging.error(f"[Orquestador] Error en reintento {_intento+1}: {_e}")
 
         total_lineas = len(lineas_validas)
         indice_nombre = os.path.basename(indice_path)
@@ -242,8 +305,15 @@ def procesar_lote_kofax_task(self, task_id_str, clases_filtro=None):
 
         crear_lote_auditoria(task_id_str, total_lineas, f"{corte}|{fecha}")
 
-        # Dividir en 8 bloques paralelos para utilizar los 4 trabajadores Celery simultáneamente
-        num_bloques = 8
+        # FIX CRÍTICO: Si total_lineas = 0 después de reintentos, completar inmediatamente
+        # para que la UI no quede congelada en "Iniciando..." para siempre.
+        if total_lineas == 0:
+            logging.error(f"[Orquestador] No se encontraron líneas válidas en el índice (clases_filtro={clases_filtro}). Marcando lote como error.")
+            completar_lote_auditoria(task_id_str, 'error')
+            return {"status": "Error", "error": "Índice sin líneas válidas (posible filtro de clases vacío o archivo no disponible temporalmente)."}
+
+        # Dividir en 4 bloques (uno por worker Celery) — menos condiciones de carrera en DB
+        num_bloques = 4
         tamano_bloque = max(1, (total_lineas + num_bloques - 1) // num_bloques)
 
         logging.info(f"⚡ Dividiendo {total_lineas} documentos en {num_bloques} bloques paralelos (~{tamano_bloque} docs/bloque)...")

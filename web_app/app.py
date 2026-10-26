@@ -490,11 +490,36 @@ def _obtener_lote_dir_activo():
 
     return '/volumen_compartido/lote_kofax'
 
+@app.route('/api/imagen_info/<path:nombre_archivo>', methods=['GET'])
+@limiter.exempt
+@login_requerido
+def api_imagen_info(nombre_archivo):
+    """Devuelve metadatos de la imagen, como la cantidad de páginas."""
+    lote_dir = _obtener_lote_dir_activo()
+    ruta = os.path.join(lote_dir, nombre_archivo)
+    
+    real_lote_dir = os.path.realpath(lote_dir)
+    real_ruta = os.path.realpath(ruta)
+    if not real_ruta.startswith(real_lote_dir):
+        return jsonify({"error": "Acceso denegado. Ruta inválida."}), 403
+
+    if not os.path.exists(real_ruta):
+        return jsonify({"error": "Archivo no encontrado"}), 404
+        
+    try:
+        from PIL import Image
+        with Image.open(real_ruta) as img:
+            total_paginas = getattr(img, 'n_frames', 1)
+        return jsonify({"total_paginas": max(1, total_paginas)})
+    except Exception as e:
+        logging.error(f"Error obteniendo info de imagen {ruta}: {e}")
+        return jsonify({"total_paginas": 1, "error": str(e)}), 200
+
 @app.route('/api/imagen/<path:nombre_archivo>', methods=['GET'])
 @limiter.exempt
 @login_requerido
 def api_previsualizar_imagen(nombre_archivo):
-    """Sirve una imagen del lote para previsualización en el navegador (convirtiendo TIF a JPEG si es necesario)."""
+    """Sirve una imagen del lote para previsualización en el navegador (convirtiendo TIF a JPEG si es necesario, soportando páginas)."""
     lote_dir = _obtener_lote_dir_activo()
     ruta = os.path.join(lote_dir, nombre_archivo)
     
@@ -508,8 +533,19 @@ def api_previsualizar_imagen(nombre_archivo):
         return jsonify({"error": "Archivo no encontrado"}), 404
         
     try:
+        # Página solicitada (1-indexed)
+        pag = request.args.get('pag', 1, type=int)
+        pag = max(1, pag)
+        
         from PIL import Image
         img = Image.open(real_ruta)
+        
+        # Si tiene múltiples páginas, posicionarse en la indicada
+        total_paginas = getattr(img, 'n_frames', 1)
+        if total_paginas > 1:
+            frame_idx = min(pag - 1, total_paginas - 1)
+            img.seek(frame_idx)
+            
         # Convert to RGB (to handle CMYK, palettes, or TIFF specifics)
         if img.mode != 'RGB':
             img = img.convert('RGB')

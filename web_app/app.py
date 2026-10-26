@@ -18,7 +18,8 @@ from core.db_models import inicializar_base_datos, verificar_usuario, set_estado
 from core.inventory import (
     obtener_inventario_tipos_documentales, obtener_modelos_conocidos, extension_permitida,
     borrar_todo_el_conocimiento, borrar_conocimiento_proceso, borrar_conocimiento_clase,
-    descartar_subida_clase, borrar_conocimiento_clase_global, descartar_subida_clase_global
+    descartar_subida_clase, borrar_conocimiento_clase_global, descartar_subida_clase_global,
+    obtener_todos_los_procesos_disponibles
 )
 
 # ==========================================
@@ -121,11 +122,13 @@ def dashboard():
 @login_requerido
 def conocimiento():
     modelos_conocidos = obtener_modelos_conocidos()
+    todos_los_procesos = obtener_todos_los_procesos_disponibles()
     return render_template(
         'conocimiento.html',
         usuario=session['usuario'],
         rol=session['rol'],
-        modelos_conocidos=modelos_conocidos
+        modelos_conocidos=modelos_conocidos,
+        todos_los_procesos=todos_los_procesos
     )
 
 @app.route('/conocimiento/agregar_proceso', methods=['POST'])
@@ -174,7 +177,7 @@ def eliminar_proceso_clase():
     from core.inventory import guardar_mapa_procesos_clase, obtener_procesos_de_clase
     actuales = obtener_procesos_de_clase(clase)
     nuevos = [p for p in actuales if p != proceso]
-    guardar_mapa_procesos_clase(clase, nuevos)
+    guardar_mapa_procesos_clase(clase, nuevos, sobrescribir=True)
     flash(f"🗑️ Proceso '{proceso}' desvinculado de '{clase}'.", "info")
     return redirect(url_for('conocimiento'))
 
@@ -674,13 +677,15 @@ def admin():
 
     inventario = obtener_inventario_tipos_documentales()
     modelos_conocidos = obtener_modelos_conocidos()
+    todos_los_procesos = obtener_todos_los_procesos_disponibles()
 
     return render_template(
         'admin.html',
         usuario=session['usuario'],
         rol=session['rol'],
         inventario=inventario,
-        modelos_conocidos=modelos_conocidos
+        modelos_conocidos=modelos_conocidos,
+        todos_los_procesos=todos_los_procesos
     )
 
 @app.route('/admin/subir_documentos', methods=['POST'])

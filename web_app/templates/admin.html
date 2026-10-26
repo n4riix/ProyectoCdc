@@ -225,24 +225,22 @@
                             </div>
                             
                             <div class="multiselect-menu" id="multiselect_menu" 
-                                 style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #141c21; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); z-index: 10000; padding: 12px; margin-top: 4px; box-sizing: border-box;">
+                                 style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #141c21; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); z-index: 10000; padding: 12px; margin-top: 4px; box-sizing: border-box; max-height: 280px; overflow-y: auto;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                     <span style="font-size: 0.8rem; font-weight: bold; color: var(--border-accent);">Marcar Procesos:</span>
                                     <a href="javascript:void(0)" onclick="limpiarProcesos()" style="font-size: 0.75rem; color: #ff7875; text-decoration: none;">Desmarcar todos</a>
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" class="chk-proceso" value="CCD" onchange="actualizarSeleccionProcesos()"> CCD</label>
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" class="chk-proceso" value="CNE" onchange="actualizarSeleccionProcesos()"> CNE</label>
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" class="chk-proceso" value="CNW" onchange="actualizarSeleccionProcesos()"> CNW</label>
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" class="chk-proceso" value="ACT" onchange="actualizarSeleccionProcesos()"> ACT</label>
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" class="chk-proceso" value="AMC" onchange="actualizarSeleccionProcesos()"> AMC</label>
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" class="chk-proceso" value="RCL" onchange="actualizarSeleccionProcesos()"> RCL</label>
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" class="chk-proceso" value="PPC" onchange="actualizarSeleccionProcesos()"> PPC</label>
-                                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; user-select: none;"><input type="checkbox" class="chk-proceso" value="TDC" onchange="actualizarSeleccionProcesos()"> TDC</label>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(95px, 1fr)); gap: 8px; margin-bottom: 10px;">
+                                    {% set lista_admin_proc = todos_los_procesos if todos_los_procesos else ['CCD', 'CNE', 'CNW', 'ACT', 'AMC', 'RCL', 'PPC', 'TDC'] %}
+                                    {% for proc_item in lista_admin_proc %}
+                                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; user-select: none;">
+                                            <input type="checkbox" class="chk-proceso" value="{{ proc_item }}" onchange="actualizarSeleccionProcesos()"> {{ proc_item }}
+                                        </label>
+                                    {% endfor %}
                                 </div>
                                 <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
                                     <input type="text" id="input_otro_proceso" class="form-control" 
-                                           placeholder="+ Otro proceso (ej: CAH)" 
+                                           placeholder="+ Otro proceso (ej: CAH, 500MD)" 
                                            style="font-size: 0.85rem; padding: 5px 8px; text-transform: uppercase; width: 100%; box-sizing: border-box;" 
                                            oninput="this.value = this.value.toUpperCase(); actualizarSeleccionProcesos();">
                                 </div>
@@ -387,7 +385,12 @@
 
             const inputOtro = document.getElementById('input_otro_proceso');
             if (inputOtro && inputOtro.value.trim()) {
-                seleccionados.push(inputOtro.value.trim());
+                const tokens = inputOtro.value.split(/[\s,;]+/).map(t => t.trim().toUpperCase()).filter(t => t);
+                tokens.forEach(tok => {
+                    if (!seleccionados.includes(tok)) {
+                        seleccionados.push(tok);
+                    }
+                });
             }
 
             const label = document.getElementById('multiselect_label');

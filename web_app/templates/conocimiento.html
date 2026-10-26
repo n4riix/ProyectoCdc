@@ -228,8 +228,8 @@
                                     </label>
                                     
                                     <!-- Checkboxes de procesos del sistema -->
-                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; margin-bottom: 14px; background: rgba(0,0,0,0.1); padding: 12px; border-radius: 6px; border: 1px solid var(--input-border);">
-                                        {% set lista_disponibles = ['CCD', 'CNE', 'CNW', 'ACT', 'AMC', 'RCL', 'PPC', 'TDC'] %}
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; margin-bottom: 12px; background: rgba(0,0,0,0.1); padding: 12px; border-radius: 6px; border: 1px solid var(--input-border);">
+                                        {% set lista_disponibles = todos_los_procesos if todos_los_procesos else ['CCD', 'CNE', 'CNW', 'ACT', 'AMC', 'RCL', 'PPC', 'TDC'] %}
                                         {% for cod in lista_disponibles %}
                                             {% set ya_asignado = (cod in item.procesos) %}
                                             <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; cursor: {% if ya_asignado %}default{% else %}pointer{% endif %}; opacity: {% if ya_asignado %}0.4{% else %}1{% endif %}; user-select: none;">
@@ -241,6 +241,14 @@
                                                 {{ cod }}
                                             </label>
                                         {% endfor %}
+                                    </div>
+
+                                    <!-- Campo para agregar otro proceso nuevo -->
+                                    <div style="margin-bottom: 14px;">
+                                        <input type="text" id="input-otro-{{ loop.index }}" class="form-control" 
+                                               placeholder="+ Otro proceso (ej: CAH, 500MD, separadas por coma)" 
+                                               style="font-size: 0.85rem; padding: 6px 10px; text-transform: uppercase; width: 100%; box-sizing: border-box;" 
+                                               oninput="this.value = this.value.toUpperCase(); actualizarSeleccionAdd('{{ loop.index }}');">
                                     </div>
 
                                     <div style="display: flex; gap: 8px;">
@@ -276,6 +284,16 @@
             const chks = document.querySelectorAll('.chk-add-' + idx + ':not([disabled]):checked');
             const seleccionados = [];
             chks.forEach(c => seleccionados.push(c.value));
+
+            const inputOtro = document.getElementById('input-otro-' + idx);
+            if (inputOtro && inputOtro.value.trim()) {
+                const tokens = inputOtro.value.split(/[\s,;]+/).map(t => t.trim().toUpperCase()).filter(t => t);
+                tokens.forEach(tok => {
+                    if (!seleccionados.includes(tok)) {
+                        seleccionados.push(tok);
+                    }
+                });
+            }
 
             const hiddenInput = document.getElementById('hidden-procs-' + idx);
             if (hiddenInput) {

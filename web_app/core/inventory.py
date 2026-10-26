@@ -76,14 +76,17 @@ def extension_permitida(nombre_archivo):
     return ext.lower() in ALLOWED_EXTENSIONS
 
 
-def guardar_mapa_procesos_clase(clase, lista_procesos):
+def guardar_mapa_procesos_clase(clase, lista_procesos, sobrescribir=False):
     """Guarda o actualiza la lista de procesos en mayúsculas para un tipo documental."""
-    if not clase or not lista_procesos:
+    if not clase:
         return
     mapa = _cargar_mapa_procesos()
-    procesos_clean = [p.strip().upper() for p in lista_procesos if p.strip()]
-    existentes = mapa.get(clase, [])
-    nuevos = list(dict.fromkeys(existentes + procesos_clean))
+    procesos_clean = [p.strip().upper() for p in lista_procesos if p.strip()] if lista_procesos else []
+    if sobrescribir:
+        nuevos = list(dict.fromkeys(procesos_clean))
+    else:
+        existentes = mapa.get(clase, [])
+        nuevos = list(dict.fromkeys(existentes + procesos_clean))
     mapa[clase] = nuevos
     _guardar_mapa_procesos_file(mapa)
 
@@ -91,9 +94,9 @@ def guardar_mapa_procesos_clase(clase, lista_procesos):
 def obtener_procesos_de_clase(clase):
     """Retorna la lista actual de procesos para una clase, usando mapa dinámico o base estático."""
     mapa_dinamico = _cargar_mapa_procesos()
-    procesos = mapa_dinamico.get(clase, [])
-    if not procesos:
-        procesos = PROCESOS_BASE.get(clase, [])
+    if clase in mapa_dinamico:
+        return mapa_dinamico[clase]
+    procesos = PROCESOS_BASE.get(clase, [])
     if not procesos:
         if clase.startswith("EXC"):
             procesos = ["CCD", "CNE", "CNW"]
@@ -102,6 +105,30 @@ def obtener_procesos_de_clase(clase):
         else:
             procesos = ["GLOBAL"]
     return procesos
+
+
+def obtener_todos_los_procesos_disponibles():
+    """
+    Retorna la lista ordenada y única de TODOS los procesos conocidos en el sistema,
+    combinando la lista base estándar bancaria y los procesos agregados dinámicamente en procesos_map.json.
+    """
+    procesos_set = {'CCD', 'CNE', 'CNW', 'ACT', 'AMC', 'RCL', 'PPC', 'TDC'}
+    
+    # Procesos de PROCESOS_BASE
+    for lista in PROCESOS_BASE.values():
+        for p in lista:
+            if p and p.strip():
+                procesos_set.add(p.strip().upper())
+                
+    # Procesos de mapa dinámico guardado
+    mapa_dinamico = _cargar_mapa_procesos()
+    for lista in mapa_dinamico.values():
+        if isinstance(lista, list):
+            for p in lista:
+                if p and p.strip():
+                    procesos_set.add(p.strip().upper())
+                    
+    return sorted(list(procesos_set))
 
 
 def obtener_inventario_pendientes():
@@ -195,8 +222,9 @@ def obtener_conocimiento_agrupado_por_tipo():
     resultado = []
 
     for clase in clases_entrenadas:
-        procesos = mapa_dinamico.get(clase, [])
-        if not procesos:
+        if clase in mapa_dinamico:
+            procesos = mapa_dinamico[clase]
+        else:
             procesos = PROCESOS_BASE.get(clase, [])
             if not procesos:
                 if clase.startswith("EXC"):
